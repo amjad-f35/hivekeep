@@ -7,10 +7,17 @@
 //! [`actor_state`], [`preview`], ...), and finally [`validation`] and
 //! [`defaults`], which operate on the wire messages of `hivekeep-proto`.
 
+pub mod access;
+pub mod actor_state;
 pub mod compute;
 pub mod field;
+pub mod hostname;
+pub mod image_ref;
 pub mod names;
+pub mod preview;
 pub mod resource;
+pub mod sandbox_class;
 pub mod snapshot;
 pub mod spiffe;
 pub mod uri;
+pub mod volume_path;
