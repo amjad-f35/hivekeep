@@ -1,0 +1,726 @@
+syntax = "proto3";
+
+package hivekeep.keeper.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// WorkerSupport is served by the keeper to the worker pods on its node, over a local
+// connection authenticated with the pod's identity certificate.
+service WorkerSupport {
+  // Issues a tunnel certificate for the Actor the calling worker hosts.
+  rpc MintActorCertificate(MintActorCertificateRequest) returns (MintActorCertificateResponse) {}
+
+  // Hands out a new epoch for this worker process. Called once at startup.
+  rpc AcquireWorkerEpoch(AcquireWorkerEpochRequest) returns (AcquireWorkerEpochResponse) {}
+
+  // Activates the acquired epoch and records the pod's IPs and capacity.
+  // FAILED_PRECONDITION means a newer process registered; this one must stop serving.
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse) {}
+
+  // Records the sandbox runtimes this worker process can run.
+  rpc SetWorkerSandboxRuntimes(SetWorkerSandboxRuntimesRequest) returns (SetWorkerSandboxRuntimesResponse) {}
+
+  // Asks the control plane to suspend the Actor this worker hosts.
+  rpc RequestActorSuspend(RequestActorSuspendRequest) returns (RequestActorSuspendResponse) {}
+
+  // Returns the egress policy of the Actor this worker hosts.
+  rpc GetActorEgressPolicy(GetActorEgressPolicyRequest) returns (GetActorEgressPolicyResponse) {}
+
+  // Reports that the hosted Actor's sandbox died on its own.
+  rpc ReportActorCrashed(ReportActorCrashedRequest) returns (ReportActorCrashedResponse) {}
+}
+
+message AcquireWorkerEpochRequest {
+}
+
+message AcquireWorkerEpochResponse {
+  // Epoch to register with.
+  int64 epoch = 1;
+}
+
+message RegisterWorkerRequest {
+  // Epoch obtained from AcquireWorkerEpoch.
+  // Rules: required; min 1.
+  int64 epoch = 2;
+
+  // Pod IPs, at most one per family.
+  // Rules: required; max items 2.
+  repeated string ips = 3;
+
+  // What the worker can supply.
+  // Rules: required.
+  WorkerResources capacity = 1;
+}
+
+message SetWorkerSandboxRuntimesRequest {
+  // Rules: required; min 1.
+  int64 epoch = 1;
+
+  // Rules: required; min items 1; max items 1; unique by sandbox_class.
+  repeated WorkerSandboxClass sandbox_classes = 2;
+}
+
+message SetWorkerSandboxRuntimesResponse {
+}
+
+// A sandbox class this worker runs; mirrors the control-plane message.
+message WorkerSandboxClass {
+  // Rules: required; max length 63; custom checks.
+  string sandbox_class = 1;
+
+  // Runtime used for fresh boots.
+  // Rules: required.
+  WorkerSandboxRuntime default_runtime = 2;
+
+  // Other runtimes this worker can restore snapshots from.
+  // Rules: max items 32.
+  repeated WorkerSandboxRuntime restorable_runtimes = 3;
+}
+
+// One runtime offered for a class; mirrors the control-plane message.
+message WorkerSandboxRuntime {
+  // Rules: required.
+  VersionedSandboxCompat version = 1;
+
+  RuntimeOverhead actor_overhead = 2;
+}
+
+// Per-Actor memory overhead; mirrors the control-plane message.
+message RuntimeOverhead {
+  // Rules: min 0; max 1099511627776.
+  int64 memory_bytes = 1;
+
+  // Rules: min 0; max 1073741824.
+  int64 memory_bytes_per_gib = 2;
+}
+
+// Runtime an Actor runs under, as named on Run and Restore.
+message ActorSandboxRuntime {
+  // Rules: required; max length 63; custom checks.
+  string sandbox_class = 1;
+
+  // Rules: required.
+  VersionedSandboxCompat version = 2;
+}
+
+// Compatibility schema version plus attributes of a sandbox runtime.
+message VersionedSandboxCompat {
+  // Rules: required; max length 64.
+  string schema_version = 1;
+
+  // Rules: required; max items 32; unique by key.
+  repeated AttributeEntry attributes = 2;
+}
+
+// One compatibility attribute.
+message AttributeEntry {
+  // Rules: required; max length 128.
+  string key = 1;
+
+  // Rules: required; max length 256.
+  string value = 2;
+}
+
+// What a worker can supply.
+message WorkerResources {
+  // Rules: min 0; max 999999.
+  int64 cpu_millicores = 1;
+
+  // Rules: min 0.
+  int64 memory_bytes = 2;
+
+  // Rules: min 1.
+  int32 actors = 3;
+}
+
+// Compute resources a workload may use.
+message ResourceRequirements {
+  Resources limits = 1;
+}
+
+// An amount of each compute resource. Zero means none.
+message Resources {
+  // Rules: min 0; max 999999.
+  int64 cpu_millicores = 1;
+
+  // Rules: min 0.
+  int64 memory_bytes = 2;
+}
+
+message RegisterWorkerResponse {
+}
+
+message RequestActorSuspendRequest {
+  // Rules: required; dns-label.
+  string actor_hive = 1;
+
+  // Rules: required; dns-label.
+  string actor_name = 2;
+
+  // Guards against the Actor being deleted and recreated under the same name.
+  // Rules: required; uuid.
+  string actor_uid = 3;
+}
+
+message RequestActorSuspendResponse {
+}
+
+message ReportActorCrashedRequest {
+  // Rules: required; dns-label.
+  string actor_hive = 1;
+
+  // Rules: required; dns-label.
+  string actor_name = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+
+  // What the worker observed, e.g. how the sandbox exited.
+  // Rules: required; max length 4096.
+  string message = 4;
+}
+
+message ReportActorCrashedResponse {
+}
+
+message GetActorEgressPolicyRequest {
+  // Rules: required; dns-label.
+  string actor_hive = 1;
+
+  // Rules: required; dns-label.
+  string actor_name = 2;
+}
+
+message GetActorEgressPolicyResponse {
+  // Unset when the Actor has no policy, which denies all egress.
+  EgressPolicy egress_policy = 1;
+}
+
+// The part of an Actor's egress policy a worker enforces itself. Effects stay with the
+// gateway so credentials never reach the node.
+message EgressPolicy {
+  repeated EgressRule rules = 1;
+}
+
+// Exactly one member is set. A rule with none allows nothing.
+message EgressRule {
+  EgressDestinations http = 1;
+
+  EgressDestinations https = 2;
+
+  EgressDestinations tls_passthrough = 3;
+}
+
+// Hostnames and ports a rule allows, with defaults already applied.
+message EgressDestinations {
+  repeated string hostnames = 1;
+
+  EgressPorts ports = 2;
+}
+
+// Every port, or the listed numbers.
+message EgressPorts {
+  EgressAllPorts all = 1;
+
+  repeated int32 numbers = 2;
+}
+
+// Marker for every port.
+message EgressAllPorts {}
+
+message MintActorCertificateRequest {
+  // Rules: required; dns-label.
+  string actor_hive = 1;
+
+  // Rules: required; dns-label.
+  string actor_name = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+
+  // DER-encoded PKCS #10 request.
+  // Rules: required; max bytes 16384.
+  bytes certificate_signing_request = 4;
+}
+
+message MintActorCertificateResponse {
+  // DER leaf certificate followed by intermediates.
+  repeated bytes actor_certificates = 1;
+}
+
+// Keeper is the node agent's control surface, called by the control plane. At most one
+// Run, Restore, Checkpoint, PromoteSnapshot, DetachActor or Terminate runs per Actor at
+// a time.
+service Keeper {
+  // Boots a fresh workload for an Actor on a worker.
+  rpc Run(RunRequest) returns (RunResponse) {}
+
+  // Captures the workload into a new snapshot and returns the worker to a blank state.
+  // upload_config decides when the snapshot becomes durable.
+  rpc Checkpoint(CheckpointRequest) returns (CheckpointResponse) {}
+
+  // Restores a workload from a snapshot onto a worker.
+  rpc Restore(RestoreRequest) returns (RestoreResponse) {}
+
+  // Makes a snapshot durable while keeping its node-local copy.
+  rpc PromoteSnapshot(PromoteSnapshotRequest) returns (PromoteSnapshotResponse) {}
+
+  // Makes the newest local snapshot durable, then removes local copies so the Actor can
+  // resume on any node.
+  rpc DetachActor(DetachActorRequest) returns (DetachActorResponse) {}
+
+  // Kills any workload of the Actor, unmounts its volumes and cleans up node state.
+  rpc Terminate(TerminateRequest) returns (TerminateResponse) {}
+}
+
+message TerminateRequest {
+  // When empty only node-side state is cleaned up.
+  // Rules: uuid.
+  string worker_pod_uid = 1;
+
+  // Rules: required; dns-label.
+  string hive = 2;
+
+  // Rules: required; dns-label.
+  string actor_name = 3;
+
+  // Rules: required; uuid.
+  string actor_uid = 4;
+
+  // Rules: dns-label.
+  string actor_template_hive = 5;
+
+  // Rules: dns-label.
+  string actor_template_name = 6;
+
+  // May be unset for Actors whose template is gone.
+  WorkloadSpec spec = 7;
+}
+
+message TerminateResponse {
+}
+
+message RunRequest {
+  // Rules: required; uuid.
+  string worker_pod_uid = 1;
+
+  // Rules: required; dns-label.
+  string hive = 2;
+
+  // Rules: required; dns-label.
+  string actor_name = 3;
+
+  // Rules: required; uuid.
+  string actor_uid = 4;
+
+  // Rules: dns-label.
+  string actor_template_hive = 5;
+
+  // Rules: dns-label.
+  string actor_template_name = 6;
+
+  // Rules: required.
+  WorkloadSpec spec = 7;
+
+  optional EgressGateway egress_gateway = 9;
+
+  // Declared size of the Actor; the sandbox is sized to it.
+  ResourceRequirements resources = 10;
+
+  // Runtime to run under, from the worker assignment.
+  // Rules: required.
+  ActorSandboxRuntime sandbox_runtime = 12;
+}
+
+// Tunnelled egress endpoint for one activation.
+message EgressGateway {
+  // host:port of the gateway.
+  // Rules: required; max length 261; custom checks.
+  string address = 1;
+}
+
+// A pod-like description of an Actor's containers and volumes.
+// Rules: custom checks.
+message WorkloadSpec {
+  // Rules: max items 10; unique by name.
+  repeated Container containers = 1;
+
+  // Rules: max items 32; unique by name.
+  repeated Volume volumes = 2;
+}
+
+message DurableDirVolumeSource {
+}
+
+message ExternalVolumeSource {
+  // Always set: only provisioned volumes are sent.
+  // Rules: required; max length 256; custom checks.
+  string storage_volume_id = 1;
+
+  // Rules: max length 253; custom checks.
+  string volume_type = 2;
+
+  // Driver provisioning metadata; bounded, not interpreted.
+  // Rules: custom checks.
+  map<string, string> volume_context = 3;
+
+  // Driver attach metadata for this node; bounded, not interpreted.
+  // Rules: custom checks.
+  map<string, string> publish_context = 4;
+}
+
+message ImageVolumeSource {
+  // OCI image reference, pinned by digest.
+  // Rules: required; max length 512; custom checks.
+  string reference = 1;
+}
+
+// An identity field of an Actor.
+enum ActorMetadataField {
+  ACTOR_METADATA_FIELD_UNSPECIFIED = 0;
+  ACTOR_METADATA_FIELD_NAME = 1;
+  ACTOR_METADATA_FIELD_HIVE = 2;
+  ACTOR_METADATA_FIELD_UID = 3;
+}
+
+// Projects one identity field to a file relative to the volume root.
+message ActorMetadataItem {
+  // Rules: required; min 1; max 3.
+  ActorMetadataField field = 1;
+
+  // Rules: required; min length 1; max length 255; custom checks.
+  string path = 2;
+}
+
+// Projects identity fields into files, written raw without trailing newline.
+message ActorMetadataDataSource {
+  // Rules: required; min items 1; max items 8; unique by field.
+  repeated ActorMetadataItem items = 1;
+}
+
+// Projects named trust bundles to a PEM file.
+message TrustBundleDataSource {
+  // Rules: required; min length 1; max length 255; custom checks.
+  string path = 1;
+  // Rules: required; min items 1; max items 8; unique values; each value: min length 1; each value: max length 253.
+  repeated string names = 2;
+}
+
+// Exactly one projection.
+message SystemInfoDataSource {
+  // Rules: one-of member.
+  ActorMetadataDataSource actor_metadata = 1;
+
+  // Rules: one-of member.
+  TrustBundleDataSource trust_bundle = 2;
+}
+
+// Read-only volume of generated files, rewritten on every Run/Restore.
+message SystemInfoVolumeSource {
+  // Rules: max items 8; custom checks.
+  repeated SystemInfoDataSource data_sources = 1;
+}
+
+// A named volume with exactly one source.
+message Volume {
+  // Rules: required; dns-label.
+  string name = 1;
+
+  // Rules: one-of member.
+  DurableDirVolumeSource durable_dir = 2;
+
+  // Rules: one-of member.
+  ExternalVolumeSource external = 3;
+
+  // Rules: one-of member.
+  SystemInfoVolumeSource system_info = 4;
+
+  // Rules: one-of member.
+  ImageVolumeSource image = 5;
+}
+
+// Mounts a Volume at an absolute path.
+message VolumeMount {
+  // Rules: required; dns-label.
+  string name = 1;
+
+  // Rules: required; max length 4096; custom checks.
+  string mount_path = 2;
+}
+
+// One container of a workload.
+message Container {
+  // Rules: required; dns-label.
+  string name = 1;
+
+  // Rules: required; max length 512; custom checks.
+  string image = 2;
+
+  // Rules: max items 64; each value: max length 4096.
+  repeated string command = 3;
+
+  // Rules: max items 64; each value: max length 4096.
+  repeated string args = 7;
+
+  // Rules: max items 32; unique by name.
+  repeated EnvVar env = 4;
+
+  WakeupProbe wakeup_probe = 5;
+
+  // Rules: max items 32; unique by mount_path; custom checks.
+  repeated VolumeMount volume_mounts = 6;
+
+  SecurityContext security_context = 8;
+
+  ResourceRequirements resources = 9;
+}
+
+// Process security settings.
+message SecurityContext {
+  Capabilities capabilities = 1;
+}
+
+// Capability changes, named without "CAP_"; drop applies before add.
+message Capabilities {
+  // Rules: max items 64; unique values; custom checks.
+  repeated string add = 1;
+
+  // Rules: max items 64; unique values; custom checks.
+  repeated string drop = 2;
+}
+
+// One environment variable.
+message EnvVar {
+  // Rules: required; max length 256; custom checks.
+  string name = 1;
+
+  // Rules: max length 32768.
+  string value = 2 [ debug_redact = true ];
+}
+
+// Readiness check. Only HTTP GET is supported.
+message WakeupProbe {
+  // Rules: required.
+  HttpGetAction http_get = 1;
+
+  // Rules: required; min 1; max 3600.
+  int32 timeout_seconds = 2;
+}
+
+// HTTP GET against the container.
+message HttpGetAction {
+  // Rules: required; max length 1024; custom checks.
+  string path = 1;
+
+  // Rules: required; min 1; max 65535.
+  int32 port = 2;
+}
+
+message RunResponse {
+  // Epoch of the worker process that started the workload.
+  int64 worker_epoch = 1;
+}
+
+// State layers a snapshot holds, least to most; mirrors the public enum.
+enum SnapshotFidelity {
+  SNAPSHOT_FIDELITY_UNSPECIFIED = 0;
+  SNAPSHOT_FIDELITY_VOLUMES = 1;
+  SNAPSHOT_FIDELITY_ROOTFS = 2;
+  SNAPSHOT_FIDELITY_MEMORY = 3;
+}
+
+// Durable location of a snapshot.
+message ObjectStorage {
+  // Prefix the snapshot's objects are stored under.
+  // Rules: required; max length 2048; custom checks.
+  string snapshot_uri = 1;
+
+  // Whether the snapshot may be served from the node-local cache.
+  // Rules: max 2.
+  SnapshotSharing sharing = 2;
+}
+
+// How a snapshot in object storage may be consumed.
+enum SnapshotSharing {
+  SNAPSHOT_SHARING_UNSPECIFIED = 0;
+
+  // Owned by this Actor only.
+  SNAPSHOT_SHARING_PRIVATE = 1;
+
+  // May be shared by several Actors (e.g. a Tag).
+  SNAPSHOT_SHARING_SHARED = 2;
+}
+
+// One snapshot of an Actor and where its durable copy lives.
+message Snapshot {
+  // Directory name of the local checkpoint; a bare name.
+  // Rules: required; dns-label.
+  string snapshot_uuid = 1;
+
+  // Generation from the control plane, starting at 1.
+  // Rules: required; min 1.
+  int32 generation = 2;
+
+  // Rules: required; min 1; max 3.
+  SnapshotFidelity fidelity = 3;
+
+  // Durable copy location.
+  // Rules: required.
+  ObjectStorage object = 4;
+}
+
+// A snapshot the keeper holds or uploaded.
+message SnapshotReport {
+  Snapshot snapshot = 1;
+
+  // When the checkpoint committed on this node.
+  google.protobuf.Timestamp local_commit_time = 2;
+
+  // When the upload's manifest was written.
+  google.protobuf.Timestamp durable_complete_time = 3;
+}
+
+// Snapshots the keeper holds for one Actor.
+message ActorSnapshotState {
+  // Snapshot used for local restores.
+  SnapshotReport latest_local = 1;
+
+  // Snapshot a background upload is working on.
+  SnapshotReport uploading = 2;
+
+  // Newest snapshot known to be durable.
+  SnapshotReport latest_durable = 3;
+
+  // When the next background upload is planned. Advisory.
+  google.protobuf.Timestamp upload_due_time = 4;
+}
+
+// When a checkpoint's snapshot becomes durable.
+message UploadConfig {
+  // Rules: required; min 1; max 2.
+  UploadMode mode = 1;
+}
+
+// When a checkpoint's snapshot is uploaded.
+enum UploadMode {
+  UPLOAD_MODE_UNSPECIFIED = 0;
+
+  // Upload later in the background.
+  UPLOAD_MODE_DEFERRED = 1;
+
+  // Upload before the call returns.
+  UPLOAD_MODE_IMMEDIATE = 2;
+}
+
+message CheckpointRequest {
+  // Rules: required; uuid.
+  string worker_pod_uid = 1;
+
+  // Rules: required; dns-label.
+  string hive = 2;
+
+  // Rules: required; dns-label.
+  string actor_name = 3;
+
+  // Rules: required; uuid.
+  string actor_uid = 4;
+
+  // Rules: dns-label.
+  string actor_template_hive = 5;
+
+  // Rules: dns-label.
+  string actor_template_name = 6;
+
+  // Rules: required.
+  WorkloadSpec spec = 7;
+
+  // Snapshot to take and its upload destination.
+  // Rules: required.
+  Snapshot snapshot = 8;
+
+  // Rules: required.
+  UploadConfig upload_config = 9;
+}
+
+message CheckpointResponse {
+  ActorSnapshotState state = 1;
+}
+
+message RestoreRequest {
+  // Rules: required; uuid.
+  string worker_pod_uid = 1;
+
+  // Rules: required; dns-label.
+  string hive = 2;
+
+  // Rules: required; dns-label.
+  string actor_name = 3;
+
+  // Rules: required; uuid.
+  string actor_uid = 4;
+
+  // Rules: dns-label.
+  string actor_template_hive = 5;
+
+  // Rules: dns-label.
+  string actor_template_name = 6;
+
+  // Rules: required.
+  WorkloadSpec spec = 7;
+
+  // Snapshot to restore. A usable local copy is preferred.
+  // Rules: required.
+  Snapshot snapshot = 8;
+
+  optional EgressGateway egress_gateway = 9;
+
+  ResourceRequirements resources = 10;
+
+  // Rules: required.
+  ActorSandboxRuntime sandbox_runtime = 12;
+}
+
+message RestoreResponse {
+  int64 worker_epoch = 1;
+}
+
+message PromoteSnapshotRequest {
+  // Rules: required; dns-label.
+  string hive = 1;
+
+  // Rules: required; dns-label.
+  string actor_name = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+
+  // Rules: dns-label.
+  string actor_template_hive = 4;
+
+  // Rules: dns-label.
+  string actor_template_name = 5;
+
+  // Rules: required.
+  Snapshot snapshot = 6;
+}
+
+message PromoteSnapshotResponse {
+  // latest_durable is now the promoted snapshot.
+  ActorSnapshotState state = 1;
+}
+
+message DetachActorRequest {
+  // Rules: required; dns-label.
+  string hive = 1;
+
+  // Rules: required; dns-label.
+  string actor_name = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+}
+
+message DetachActorResponse {
+  // latest_local is unset; latest_durable is the newest snapshot.
+  ActorSnapshotState state = 1;
+}

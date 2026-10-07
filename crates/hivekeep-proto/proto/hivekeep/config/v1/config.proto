@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package hivekeep.config.v1;
+
+// Top-level configuration file of hivekeep-api.
+message ApiConfig {
+  ApiLogging logging = 1;
+}
+
+// Logging settings.
+message ApiLogging {
+  // One of debug, info, warn, error.
+  string level = 1;
+}

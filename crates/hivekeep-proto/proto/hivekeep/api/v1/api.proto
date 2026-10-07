@@ -1,0 +1,1740 @@
+syntax = "proto3";
+
+package hivekeep.api.v1;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+
+// Control is the client-facing API of the Hivekeep control plane.
+service Control {
+  // Returns one Actor.
+  rpc GetActor(GetActorRequest) returns (Actor) {
+    option (method).resource = "Actor";
+  }
+
+  // Creates an Actor from an ActorTemplate (or from a Tag). New Actors start SUSPENDED.
+  rpc CreateActor(CreateActorRequest) returns (Actor) {
+    option (method).resource = "Actor";
+  }
+
+  // Changes the mutable fields of an Actor. Changes apply on the next resume.
+  rpc UpdateActor(UpdateActorRequest) returns (Actor) {
+    option (method).resource = "Actor";
+  }
+
+  // Checkpoints a running Actor into a new snapshot and frees its worker. Suspending an
+  // already SUSPENDED Actor returns it unchanged.
+  rpc SuspendActor(SuspendActorRequest) returns (SuspendActorResponse) {
+    option (method).resource = "Actor";
+  }
+
+  // Places an Actor on a worker and restores it from its newest snapshot (or boots it
+  // fresh when it has none).
+  rpc ResumeActor(ResumeActorRequest) returns (ResumeActorResponse) {
+    option (method).resource = "Actor";
+  }
+
+  // Drops an Actor's current execution and returns it to SUSPENDED at its newest durable
+  // snapshot. Accepted for RUNNING and CRASHED Actors, and for SUSPENDED Actors whose
+  // newest snapshot only exists on a node.
+  rpc RevertActor(RevertActorRequest) returns (RevertActorResponse) {
+    option (method).resource = "Actor";
+  }
+
+  // Deletes an Actor. A running workload is terminated, volumes are detached and the
+  // worker released before the record goes away.
+  rpc DeleteActor(DeleteActorRequest) returns (Actor) {
+    option (method).resource = "Actor";
+  }
+
+  // Returns the egress policy singleton of an Actor.
+  rpc GetActorEgressPolicy(GetActorEgressPolicyRequest) returns (EgressPolicy) {
+    option (method).resource = "EgressPolicy";
+  }
+
+  // Creates the egress policy singleton of an Actor.
+  rpc CreateActorEgressPolicy(CreateActorEgressPolicyRequest) returns (EgressPolicy) {
+    option (method).resource = "EgressPolicy";
+  }
+
+  // Replaces the egress policy singleton of an Actor.
+  rpc UpdateActorEgressPolicy(UpdateActorEgressPolicyRequest) returns (EgressPolicy) {
+    option (method).resource = "EgressPolicy";
+  }
+
+  // Deletes the egress policy singleton of an Actor.
+  rpc DeleteActorEgressPolicy(DeleteActorEgressPolicyRequest) returns (EgressPolicy) {
+    option (method).resource = "EgressPolicy";
+  }
+
+  // Issues a JWT that asserts an Actor's identity. Used by the egress gateway to inject
+  // credentials into outbound requests.
+  rpc MintActorJwt(MintActorJwtRequest) returns (MintActorJwtResponse) {
+    option (method).resource = "Actor";
+  }
+
+  // Issues an X.509 certificate whose URI SAN is the Actor's SPIFFE ID
+  // (spiffe://<trust-domain>/actor/<hive>/<actor>). Used by the egress gateway.
+  rpc MintActorCertificate(MintActorCertificateRequest) returns (MintActorCertificateResponse) {
+    option (method).resource = "Actor";
+  }
+
+  // Gives the external snapshot of a SUSPENDED Actor a stable name. The Tag owns a
+  // private copy of the snapshot, so later suspends or deletes of the Actor cannot
+  // collect it. If the snapshot is still node-local it is uploaded first.
+  rpc CreateTag(CreateTagRequest) returns (Tag) {
+    option (method).resource = "Tag";
+  }
+
+  // Returns one Tag.
+  rpc GetTag(GetTagRequest) returns (Tag) {
+    option (method).resource = "Tag";
+  }
+
+  // Lists Tags.
+  rpc ListTags(ListTagsRequest) returns (ListTagsResponse) {
+    option (method).resource = "Tag";
+  }
+
+  // Publishes or unpublishes a Tag. The snapshot it names never changes.
+  rpc UpdateTag(UpdateTagRequest) returns (Tag) {
+    option (method).resource = "Tag";
+  }
+
+  // Deletes a Tag together with the snapshot copy it owns. Actors created from the Tag
+  // that have not been suspended since still depend on that copy.
+  rpc DeleteTag(DeleteTagRequest) returns (Tag) {
+    option (method).resource = "Tag";
+  }
+
+  // Lists Workers.
+  rpc ListWorkers(ListWorkersRequest) returns (ListWorkersResponse) {
+    option (method).resource = "Worker";
+  }
+
+  // Returns one Worker.
+  rpc GetWorker(GetWorkerRequest) returns (Worker) {
+    option (method).resource = "Worker";
+  }
+
+  // Registers a Worker once its pod has an IP. New Workers are UNAVAILABLE until
+  // MarkWorkerAvailable is called.
+  rpc CreateWorker(CreateWorkerRequest) returns (Worker) {
+    option (method).resource = "Worker";
+  }
+
+  // Updates the pool-observed fields of a Worker.
+  rpc UpdateWorker(UpdateWorkerRequest) returns (Worker) {
+    option (method).resource = "Worker";
+  }
+
+  // Removes a Worker record. Nothing cascades; callers clean up first.
+  rpc DeleteWorker(DeleteWorkerRequest) returns (Worker) {
+    option (method).resource = "Worker";
+  }
+
+  // Moves a Worker to DRAINING so no new Actors are placed on it. One-way and
+  // idempotent; bound Actors are left alone. ABORTED on a concurrent write.
+  rpc DrainWorker(DrainWorkerRequest) returns (DrainWorkerResponse) {
+    option (method).resource = "Worker";
+  }
+
+  // Moves an UNAVAILABLE Worker to ACTIVE. Idempotent. FAILED_PRECONDITION for a
+  // DRAINING Worker; ABORTED on a concurrent write. Actors placed afterwards are
+  // stamped with the Worker's epoch at that moment.
+  rpc MarkWorkerAvailable(MarkWorkerAvailableRequest) returns (MarkWorkerAvailableResponse) {
+    option (method).resource = "Worker";
+  }
+
+  // Moves an ACTIVE Worker to UNAVAILABLE (e.g. while its pod is not Ready). Idempotent.
+  // FAILED_PRECONDITION for a DRAINING Worker; ABORTED on a concurrent write.
+  rpc MarkWorkerUnavailable(MarkWorkerUnavailableRequest) returns (MarkWorkerUnavailableResponse) {
+    option (method).resource = "Worker";
+  }
+
+  // Lists the Actors bound to a Worker.
+  rpc ListWorkerActorAssignments(ListWorkerActorAssignmentsRequest) returns (ListWorkerActorAssignmentsResponse) {
+    option (method).resource = "ActorAssignment";
+  }
+
+  // Lists Actors.
+  rpc ListActors(ListActorsRequest) returns (ListActorsResponse) {
+    option (method).resource = "Actor";
+  }
+
+  // Creates a Hive.
+  rpc CreateHive(CreateHiveRequest) returns (Hive) {
+    option (method).resource = "Hive";
+  }
+
+  // Returns one Hive.
+  rpc GetHive(GetHiveRequest) returns (Hive) {
+    option (method).resource = "Hive";
+  }
+
+  // Lists Hives.
+  rpc ListHives(ListHivesRequest) returns (ListHivesResponse) {
+    option (method).resource = "Hive";
+  }
+
+  // Deletes a Hive. FAILED_PRECONDITION while it still holds Actors or Tags.
+  rpc DeleteHive(DeleteHiveRequest) returns (Hive) {
+    option (method).resource = "Hive";
+  }
+
+  // Creates an ActorTemplate.
+  rpc CreateActorTemplate(CreateActorTemplateRequest) returns (ActorTemplate) {
+    option (method).resource = "ActorTemplate";
+  }
+
+  // Returns one ActorTemplate.
+  rpc GetActorTemplate(GetActorTemplateRequest) returns (ActorTemplate) {
+    option (method).resource = "ActorTemplate";
+  }
+
+  // Lists ActorTemplates.
+  rpc ListActorTemplates(ListActorTemplatesRequest) returns (ListActorTemplatesResponse) {
+    option (method).resource = "ActorTemplate";
+  }
+
+  // Deletes an ActorTemplate along with its golden Actor and golden Tag.
+  rpc DeleteActorTemplate(DeleteActorTemplateRequest) returns (ActorTemplate) {
+    option (method).resource = "ActorTemplate";
+  }
+
+  // Returns the deployment-wide access policy. NOT_FOUND until it is created.
+  rpc GetGlobalAccessPolicy(GetGlobalAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+
+  // Creates the deployment-wide access policy. Bootstrap owners configured on the server
+  // are always global owners, so they can create it.
+  rpc CreateGlobalAccessPolicy(CreateGlobalAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+
+  // Replaces the deployment-wide access policy. Bootstrap owners keep access even when
+  // the bindings are emptied.
+  rpc UpdateGlobalAccessPolicy(UpdateGlobalAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+
+  // Returns the access policy singleton of a Hive.
+  rpc GetHiveAccessPolicy(GetHiveAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+
+  // Creates the access policy singleton of a Hive.
+  rpc CreateHiveAccessPolicy(CreateHiveAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+
+  // Replaces the access policy singleton of a Hive.
+  rpc UpdateHiveAccessPolicy(UpdateHiveAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+
+  // Deletes the access policy singleton of a Hive.
+  rpc DeleteHiveAccessPolicy(DeleteHiveAccessPolicyRequest) returns (AccessPolicy) {
+    option (method).resource = "AccessPolicy";
+  }
+}
+
+// Location of a snapshot in object storage.
+message ObjectSnapshot {
+  // Prefix under which all of the snapshot's objects are stored.
+  // Rules: required; max length 2048.
+  string snapshot_uri = 1;
+}
+
+// Which kind of resource owns a snapshot.
+enum SnapshotOwner {
+  SNAPSHOT_OWNER_UNSPECIFIED = 0;
+
+  // Taken from, and owned by, the Actor itself.
+  SNAPSHOT_OWNER_ACTOR = 1;
+
+  // Owned by a Tag (golden snapshots included).
+  SNAPSHOT_OWNER_TAG = 2;
+}
+
+// Progress of a snapshot's durable copy.
+enum SnapshotStorageState {
+  SNAPSHOT_STORAGE_STATE_UNSPECIFIED = 0;
+
+  // The durable copy is being written.
+  SNAPSHOT_STORAGE_STATE_PENDING = 1;
+
+  // The durable copy is complete and usable.
+  SNAPSHOT_STORAGE_STATE_COMPLETED = 2;
+}
+
+// Durable copy of a Snapshot.
+message SnapshotStorage {
+  // Rules: required; min 1; max 2.
+  SnapshotStorageState state = 1;
+
+  // Rules: required.
+  ObjectSnapshot object = 2;
+}
+
+// One generation of the saved state of an Actor or Tag.
+message Snapshot {
+  // Server-assigned name. Identifies the node-local checkpoint and the object-storage name.
+  // Rules: required; dns-label.
+  string uuid = 1;
+
+  // Monotonic generation number, starting at 1.
+  // Rules: required; min 1.
+  int32 generation = 2;
+
+  // Kind of resource that owns the snapshot's objects.
+  // Rules: required; min 1; max 2.
+  SnapshotOwner owner = 3;
+
+  // Which state layers the snapshot holds.
+  // Rules: required; min 1; max 3.
+  SnapshotFidelity fidelity = 4;
+
+  // UID of the ActorTemplate the snapshot was taken under.
+  // Rules: uuid.
+  string actor_template_uid = 5;
+
+  // Node holding a local copy, if any.
+  // Rules: dns-subdomain.
+  string locality = 6;
+
+  // The durable copy, once one has been started.
+  SnapshotStorage durable_snapshot = 7;
+
+  // Runtime the snapshot was taken under; restore needs a compatible one.
+  ActorSandboxRuntime sandbox_runtime = 8;
+}
+
+// State layers a snapshot can capture, from least to most. Each level includes the
+// ones before it.
+enum SnapshotFidelity {
+  SNAPSHOT_FIDELITY_UNSPECIFIED = 0;
+
+  // Durable-dir volumes only.
+  SNAPSHOT_FIDELITY_VOLUMES = 1;
+
+  // Volumes plus the container root filesystems.
+  SNAPSHOT_FIDELITY_ROOTFS = 2;
+
+  // Everything, including process memory.
+  SNAPSHOT_FIDELITY_MEMORY = 3;
+}
+
+// Who may use a Tag.
+enum TagScope {
+  TAG_SCOPE_UNSPECIFIED = 0;
+
+  // Usable only inside the Tag's own Hive.
+  TAG_SCOPE_HIVE = 1;
+
+  // Usable from any Hive.
+  TAG_SCOPE_PUBLISHED = 2;
+}
+
+// Equality-based label selector over worker pools.
+message Selector {
+  // Rules: one-of member; min entries 1; max entries 10; each key: label-key; each value: label-value.
+  map<string, string> match_labels = 1;
+}
+
+// Fields shared by every Hivekeep resource.
+// Rules: custom checks.
+message ResourceMetadata {
+  // Owning Hive. Set for hive-scoped resources, empty for global ones.
+  // Rules: dns-label; immutable.
+  string hive = 1;
+
+  // Name, unique within the Hive (or globally).
+  // Rules: required; dns-label; immutable.
+  string name = 2;
+
+  // Server-assigned unique ID. A recreated resource gets a new one.
+  // Rules: uuid; immutable.
+  string uid = 3;
+
+  // Optimistic-concurrency version, bumped on every write.
+  // Rules: never decreases; min 1; cannot be cleared.
+  int64 version = 4;
+
+  // Server-stamped creation time.
+  // Rules: immutable.
+  google.protobuf.Timestamp create_time = 5;
+
+  // Server-stamped time of the last write.
+  // Rules: cannot be cleared.
+  google.protobuf.Timestamp update_time = 6;
+
+  // Set once deletion of the resource has begun.
+  // Rules: set-once; cannot be cleared.
+  google.protobuf.Timestamp delete_time = 7;
+}
+
+// External volumes attached to an Actor.
+message ExternalVolumes {
+  // Rules: max items 32; unique by name.
+  repeated ExternalVolumeStatus volumes = 1;
+}
+
+// An Actor's record of one external (CSI) volume.
+message ExternalVolumeStatus {
+  // Name of the template Volume this was provisioned for.
+  // Rules: required; dns-label; set-once; cannot be cleared.
+  string name = 1;
+
+  // Driver-assigned volume ID; empty until provisioning finishes.
+  // Rules: max length 256; set-once; cannot be cleared; custom checks.
+  string storage_volume_id = 2;
+
+  // Storage backend type.
+  // Rules: required; max length 253; set-once; cannot be cleared; custom checks.
+  string volume_type = 3;
+
+  // Driver provisioning metadata, passed through untouched.
+  // Rules: custom checks.
+  map<string, string> volume_context = 4;
+}
+
+// Actor is one sandboxed agent instance, created from an ActorTemplate.
+message Actor {
+  option (resource) = {
+    scope : SCOPE_HIVE
+    plural : "Actors"
+  };
+
+  // Rules: required; hive required.
+  ResourceMetadata metadata = 1;
+
+  // Template the Actor is built from. May only change while SUSPENDED.
+  // Rules: required; hive required.
+  ObjectRef actor_template = 2;
+
+  // Further restricts which workers may host the Actor.
+  Selector worker_selector = 3;
+
+  // Tag the Actor was created from, if any.
+  // Rules: hive required; immutable.
+  ObjectRef source_tag = 4;
+
+  // Server-owned state.
+  ActorStatus status = 5;
+}
+
+// Outbound network policy of an Actor. Each Actor has at most one, named "default".
+message EgressPolicy {
+  option (resource) = {
+    parents : "Actor"
+    singleton : true
+    plural : "EgressPolicies"
+  };
+
+  // Rules: required; hive required; custom checks.
+  ResourceMetadata metadata = 1;
+
+  // Allow rules. Traffic matching none of them is refused.
+  // Rules: max items 256; custom checks.
+  repeated EgressRule rules = 2;
+}
+
+// Egress rules applied to a template's golden Actor; same semantics as EgressPolicy.rules.
+message EgressPolicyTemplate {
+  // Rules: required; max items 256; custom checks.
+  repeated EgressRule rules = 1;
+}
+
+// Allows one protocol to a set of destinations. Exactly one member is set. All
+// protocols are TCP; UDP is always blocked.
+message EgressRule {
+  // Rules: one-of member.
+  HttpRule http = 1;
+
+  // Rules: one-of member.
+  HttpsRule https = 2;
+
+  // Rules: one-of member.
+  TlsPassthroughRule tls_passthrough = 3;
+}
+
+// Allows cleartext HTTP, matched per request on the authority and port.
+message HttpRule {
+  // Rules: required; max items 256; unique values; custom checks.
+  repeated string hostnames = 1;
+
+  Ports ports = 2;
+
+  HttpRuleEffects effects = 3;
+}
+
+// Allows HTTPS that the gateway terminates and inspects. Actors must trust the gateway
+// CA; requests are matched one by one after TLS termination.
+message HttpsRule {
+  // Rules: required; max items 256; unique values; custom checks.
+  repeated string hostnames = 1;
+
+  Ports ports = 2;
+
+  HttpRuleEffects effects = 3;
+}
+
+// Allows TLS forwarded without decryption, matched once per connection on SNI and
+// port. Connections without SNI never match.
+message TlsPassthroughRule {
+  // Rules: required; max items 256; unique values; custom checks.
+  repeated string hostnames = 1;
+
+  // Rules: required.
+  Ports ports = 2;
+}
+
+// Destination ports of a rule: every port, or a set of numbers (not both).
+message Ports {
+  // Rules: one-of member.
+  AllPorts all = 1;
+
+  // Rules: one-of member; max items 16; unique values; each value: min 1; each value: max 65535.
+  repeated int32 numbers = 2;
+}
+
+// Marker selecting every port.
+message AllPorts {}
+
+// Changes the gateway applies to requests matched by an HTTP or HTTPS rule.
+// Rules: custom checks.
+message HttpRuleEffects {
+  // Rules: max items 16; unique by header; custom checks.
+  repeated CredentialHeader replace_headers = 1;
+}
+
+// Replaces a request header's value with a credential. The Actor sends a placeholder;
+// the gateway drops it and forwards the credential instead.
+message CredentialHeader {
+  // Header name, matched case-insensitively.
+  // Rules: required; custom checks.
+  string header = 1;
+
+  // Text placed before the credential, e.g. "Bearer ".
+  // Rules: custom checks.
+  string prefix = 2;
+
+  // Secret reference: hk-secret://<provider-class>/<provider-name>/<path>.
+  // Rules: one-of member; custom checks.
+  string credential_uri = 3;
+
+  // Inject a JWT minted for the calling Actor.
+  // Rules: one-of member.
+  ActorJwtSource actor_jwt = 4;
+}
+
+// Asks the gateway to mint a JWT for the calling Actor. Tokens are cached and reused
+// while enough lifetime remains.
+message ActorJwtSource {
+  // Rules: required; max items 16; unique values; each value: min length 1; each value: max length 512.
+  repeated string audiences = 1;
+
+  // Rules: required; min 300; max 3600.
+  int64 expiration_seconds = 2;
+}
+
+// Lifecycle state of an Actor.
+enum ActorState {
+  ACTOR_STATE_UNSPECIFIED = 0;
+
+  // A worker has been assigned and the workload is starting.
+  ACTOR_STATE_RESUMING = 1;
+
+  // The workload is running on its worker.
+  ACTOR_STATE_RUNNING = 2;
+
+  // A checkpoint is being taken.
+  ACTOR_STATE_SUSPENDING = 3;
+
+  // Not running; state lives in a snapshot.
+  ACTOR_STATE_SUSPENDED = 4;
+
+  // The workload failed; revert to recover.
+  ACTOR_STATE_CRASHED = 5;
+
+  // Deletion is in progress. Terminal.
+  ACTOR_STATE_DELETING = 6;
+
+  // Being returned to its newest durable snapshot.
+  ACTOR_STATE_REVERTING = 7;
+}
+
+// Server-owned state of an Actor.
+message ActorStatus {
+  // Current lifecycle state.
+  // Rules: required; min 1; max 7.
+  ActorState state = 1;
+
+  // The worker currently hosting the Actor. Cleared when it has none. Can be set and
+  // cleared but never re-pointed in place.
+  WorkerAssignment worker_assignment = 2;
+
+  // External volumes; they live and die with the Actor.
+  ExternalVolumes external_volumes = 3;
+
+  // Why the Actor crashed. Set on entering CRASHED, cleared by revert.
+  ActorCrash crash = 4;
+
+  // Node hosting the Actor's worker or node-local snapshot.
+  // Rules: dns-subdomain.
+  string assigned_node = 5;
+
+  // Live and in-progress snapshot generations.
+  // Rules: max items 16; unique by generation.
+  repeated Snapshot snapshots = 6;
+
+  // Highest snapshot generation handed out so far.
+  // Rules: never decreases; min 0; cannot be cleared.
+  int32 last_assigned_generation = 7;
+}
+
+// Details of the failure that moved an Actor to CRASHED.
+message ActorCrash {
+  // Rules: max length 4096.
+  string message = 1;
+
+  google.protobuf.Timestamp crash_time = 2;
+}
+
+// Denormalized copy of the hosting Worker's identity, so request routing needs no
+// second lookup.
+message WorkerAssignment {
+  // Rules: hive forbidden; required; set-once.
+  ObjectRef worker = 6;
+
+  // Rules: required; dns-label; set-once.
+  string worker_namespace = 1;
+
+  // Rules: required; dns-subdomain; set-once.
+  string worker_pool = 2;
+
+  // Rules: required; dns-subdomain; set-once.
+  string worker_pod = 3;
+
+  // Rules: required; uuid; set-once.
+  string worker_pod_uid = 4;
+
+  // Rules: required; max items 2; custom checks.
+  repeated string worker_pod_ips = 5;
+
+  // Rules: required; dns-subdomain; set-once.
+  string node_name = 7;
+
+  // Worker epoch at placement time; used to fence restarted workers.
+  // Rules: min 0.
+  int64 worker_epoch = 8;
+
+  // Runtime the Actor runs under on this worker.
+  // Rules: set-once.
+  ActorSandboxRuntime sandbox_runtime = 9;
+
+  // Rules: max length 2048; custom checks; set-once.
+  string worker_spiffe_id = 10;
+}
+
+// Server-owned state of a Tag.
+message TagStatus {
+  // Rules: durable_snapshot required.
+  Snapshot snapshot = 1;
+
+  // Rules: required; uuid.
+  string actor_template_uid = 2;
+}
+
+// Tag is a stable, Hive-owned name for one external snapshot copied from an Actor.
+// A Hive cannot be deleted while it holds Tags.
+message Tag {
+  option (resource) = {
+    scope : SCOPE_HIVE
+    plural : "Tags"
+  };
+
+  // Rules: required; hive required.
+  ResourceMetadata metadata = 1;
+
+  TagStatus status = 2;
+
+  // Who may create Actors from the Tag.
+  // Rules: required; min 1; max 2.
+  TagScope scope = 3;
+
+  // Actor whose snapshot was copied.
+  // Rules: required; hive required; immutable.
+  ObjectRef source_actor = 4;
+}
+
+// Hive is the isolation boundary Actors, templates and Tags live in. Global-scoped:
+// its identity is metadata.name.
+message Hive {
+  option (resource) = {
+    scope : SCOPE_GLOBAL
+    plural : "Hives"
+  };
+
+  // Rules: required; hive forbidden.
+  ResourceMetadata metadata = 1;
+}
+
+// Reference to a resource by hive and name.
+message ObjectRef {
+  // Empty when referencing a global resource.
+  // Rules: dns-label.
+  string hive = 1;
+
+  // Rules: required; dns-label.
+  string name = 2;
+}
+
+// ActorTemplate describes how to build Actors: containers, volumes, sizing and
+// snapshot behaviour.
+message ActorTemplate {
+  option (resource) = {
+    scope : SCOPE_HIVE
+    plural : "ActorTemplates"
+  };
+
+  // Rules: required; hive required.
+  ResourceMetadata metadata = 1;
+
+  Selector worker_selector = 2;
+
+  // Rules: required; max items 10; unique by name.
+  repeated Container containers = 3;
+
+  // Rules: max items 32; unique by name.
+  repeated Volume volumes = 4;
+
+  SnapshotConfig snapshot_config = 5;
+
+  // Rules: required; custom checks.
+  ResourceRequirements resources = 6;
+
+  // Egress policy given to the template's golden Actor.
+  // Rules: needs preview gate GoldenEgressPolicy.
+  EgressPolicyTemplate golden_egress_policy = 9;
+
+  ActorTemplateStatus status = 7;
+}
+
+// Compute resources a workload may use.
+message ResourceRequirements {
+  Resources limits = 1;
+}
+
+// An amount of each compute resource. Zero means none.
+message Resources {
+  // CPU in millicores (1000 = one core).
+  // Rules: min 0; max 999999.
+  int64 cpu_millicores = 1;
+
+  // Memory in bytes.
+  // Rules: min 0.
+  int64 memory_bytes = 2;
+}
+
+// Progress of a template's golden snapshot.
+message GoldenSnapshotStatus {
+  // Rules: hive required.
+  ObjectRef golden_tag = 1;
+
+  google.protobuf.Timestamp snapshot_time = 2;
+
+  // Rules: max length 4096.
+  string error_message = 3;
+}
+
+// Server-owned state of an ActorTemplate.
+message ActorTemplateStatus {
+  GoldenSnapshotStatus golden_snapshot_status = 1;
+}
+
+// What snapshots capture and where they are stored.
+message SnapshotConfig {
+  // Object-storage base URI (scheme, bucket, path). Honoured only with the
+  // PerTemplateSnapshotLocation preview gate.
+  // Rules: max length 1024; custom checks.
+  string storage_location = 1;
+
+  // Fidelity to capture when suspending. Defaults to MEMORY.
+  // Rules: required; min 1; max 3.
+  SnapshotFidelity preferred_fidelity = 2;
+
+  GoldenSnapshotConfig golden_snapshot_config = 3;
+}
+
+// Whether a template builds a golden snapshot.
+enum GoldenSnapshotMode {
+  GOLDEN_SNAPSHOT_MODE_UNSPECIFIED = 0;
+  GOLDEN_SNAPSHOT_MODE_ENABLED = 1;
+  GOLDEN_SNAPSHOT_MODE_DISABLED = 2;
+}
+
+// Golden snapshot settings of a template. Mode defaults to ENABLED.
+message GoldenSnapshotConfig {
+  // Rules: required; min 1; max 2.
+  GoldenSnapshotMode mode = 1;
+}
+
+// One application container of an ActorTemplate.
+message Container {
+  // Rules: required; dns-label.
+  string name = 1;
+
+  // OCI image reference, pinned by digest.
+  // Rules: required; max length 512; custom checks.
+  string image = 2;
+
+  // Rules: max items 64; each value: max length 4096.
+  repeated string command = 3;
+
+  // Rules: max items 64; each value: max length 4096.
+  repeated string args = 4;
+
+  // Rules: max items 32; unique by name.
+  repeated EnvVar env = 5;
+
+  WakeupProbe wakeup_probe = 6;
+
+  // Rules: max items 32; unique by mount_path; custom checks.
+  repeated VolumeMount volume_mounts = 7;
+
+  SecurityContext security_context = 8;
+
+  ResourceRequirements resources = 9;
+}
+
+// Process security settings (a subset of the Kubernetes securityContext).
+message SecurityContext {
+  Capabilities capabilities = 1;
+}
+
+// Linux capability changes relative to the default set, named without "CAP_".
+// Drop applies before add; "ALL" is only accepted in drop.
+message Capabilities {
+  // Rules: max items 64; unique values; custom checks.
+  repeated string add = 1;
+
+  // Rules: max items 64; unique values; custom checks.
+  repeated string drop = 2;
+}
+
+// One environment variable. Values are not expanded.
+message EnvVar {
+  // Rules: required; max length 256; custom checks.
+  string name = 1;
+
+  // Rules: max length 32768.
+  string value = 2 [ debug_redact = true ];
+}
+
+// Readiness check run on every boot or restore. A probe that does not answer 200 within
+// the timeout crashes the Actor.
+message WakeupProbe {
+  // Rules: required.
+  HttpGetAction http_get = 1;
+
+  // Rules: required; min 1; max 3600.
+  int32 timeout_seconds = 2;
+}
+
+// HTTP GET request issued by a probe. Path defaults to "/".
+message HttpGetAction {
+  // Rules: required; max length 1024; custom checks.
+  string path = 1;
+
+  // Rules: required; min 1; max 65535.
+  int32 port = 2;
+}
+
+// A named volume with exactly one source.
+message Volume {
+  // Rules: required; dns-label.
+  string name = 1;
+
+  // Rules: one-of member.
+  DurableDirVolumeSource durable_dir = 2;
+
+  // Rules: needs preview gate ExternalVolumes; one-of member.
+  ExternalVolumeSource external = 3;
+
+  // Rules: one-of member.
+  SystemInfoVolumeSource system_info = 4;
+
+  // Rules: one-of member.
+  ImageVolumeSource image = 5;
+}
+
+// A CSI volume provisioned per Actor.
+message ExternalVolumeSource {
+  // Rules: one-of member.
+  ExternalVolumeTemplate template = 1;
+}
+
+// Read-only contents of a digest-pinned OCI image.
+message ImageVolumeSource {
+  // Rules: required; max length 512; custom checks.
+  string reference = 1;
+}
+
+// A directory that persists across resumes and is captured in snapshots.
+message DurableDirVolumeSource {}
+
+// How to provision an external volume for each Actor.
+message ExternalVolumeTemplate {
+  // Rules: required; min 1.
+  int64 capacity_bytes = 1;
+
+  // Rules: required; dns-subdomain.
+  string storage_class_name = 2;
+}
+
+// Read-only volume of generated per-Actor files, rewritten on every start.
+message SystemInfoVolumeSource {
+  // Rules: max items 8; custom checks.
+  repeated SystemInfoDataSource data_sources = 1;
+}
+
+// One projection into a system-info volume; exactly one member is set.
+message SystemInfoDataSource {
+  // Rules: one-of member.
+  ActorMetadataDataSource actor_metadata = 1;
+
+  // Rules: one-of member.
+  TrustBundleDataSource trust_bundle = 2;
+}
+
+// Projects Actor identity fields into files, one per item.
+message ActorMetadataDataSource {
+  // Rules: required; min items 1; max items 8; unique by field.
+  repeated ActorMetadataItem items = 1;
+}
+
+// Projects one identity field to a relative file path.
+message ActorMetadataItem {
+  // Rules: required; min 1; max 3.
+  ActorMetadataField field = 1;
+
+  // Rules: required; min length 1; max length 255; custom checks.
+  string path = 2;
+}
+
+// An identity field of an Actor.
+enum ActorMetadataField {
+  ACTOR_METADATA_FIELD_UNSPECIFIED = 0;
+  ACTOR_METADATA_FIELD_NAME = 1;
+  ACTOR_METADATA_FIELD_HIVE = 2;
+  ACTOR_METADATA_FIELD_UID = 3;
+}
+
+// Projects the anchors of named trust bundles to a PEM file.
+message TrustBundleDataSource {
+  // Rules: required; min items 1; max items 8; each value: min length 1; each value: max length 253; unique values.
+  repeated string names = 1;
+
+  // Rules: required; min length 1; max length 255; custom checks.
+  string path = 2;
+}
+
+// Mounts a template Volume into a container at an absolute path.
+message VolumeMount {
+  // Rules: required; dns-label.
+  string name = 1;
+
+  // Rules: required; max length 4096; custom checks.
+  string mount_path = 2;
+}
+
+message CreateHiveRequest {
+  // Rules: required.
+  Hive hive = 1;
+}
+
+message GetHiveRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef hive = 1;
+}
+
+message ListHivesRequest {
+  ListOptions options = 1;
+}
+
+message ListHivesResponse {
+  repeated Hive hives = 1;
+
+  string next_page_token = 2;
+}
+
+message DeleteHiveRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef hive = 1;
+
+  DeleteOptions options = 2;
+}
+
+message CreateActorTemplateRequest {
+  // Rules: required; custom checks.
+  ActorTemplate actor_template = 1;
+}
+
+message GetActorTemplateRequest {
+  // Rules: required; hive required.
+  ObjectRef actor_template = 1;
+}
+
+message ListActorTemplatesRequest {
+  // Rules: dns-label.
+  string hive = 1;
+
+  ListOptions options = 2;
+}
+
+message ListActorTemplatesResponse {
+  repeated ActorTemplate actor_templates = 1;
+
+  string next_page_token = 2;
+}
+
+message DeleteActorTemplateRequest {
+  // Rules: required; hive required.
+  ObjectRef actor_template = 1;
+
+  DeleteOptions options = 2;
+}
+
+message GetActorRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+}
+
+message CreateActorRequest {
+  // Rules: required.
+  Actor actor = 1;
+}
+
+// Updates mutable Actor fields. Allowed in any state; takes effect on the next resume.
+message UpdateActorRequest {
+  // Rules: required; metadata required; custom checks.
+  Actor actor = 1;
+}
+
+message SuspendActorRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  SuspendOptions options = 2;
+}
+
+message SuspendActorResponse {
+  Actor actor = 1;
+}
+
+// Tuning for SuspendActor.
+message SuspendOptions {
+  // Rules: min 1; max 2.
+  DurabilityMode mode = 1;
+}
+
+// When a suspend is acknowledged relative to its snapshot becoming durable.
+enum DurabilityMode {
+  DURABILITY_MODE_UNSPECIFIED = 0;
+
+  // Wait for the durable copy.
+  DURABILITY_MODE_SYNCHRONOUS = 1;
+
+  // Acknowledge once the node-local copy exists.
+  DURABILITY_MODE_ASYNCHRONOUS = 2;
+}
+
+message ResumeActorRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+}
+
+message ResumeActorResponse {
+  Actor actor = 1;
+
+  // False when the Actor was already running.
+  bool resumed = 2;
+}
+
+message RevertActorRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+}
+
+message RevertActorResponse {
+  Actor actor = 1;
+}
+
+message DeleteActorRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  DeleteOptions options = 2;
+}
+
+message GetActorEgressPolicyRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required; dns-label; custom checks.
+  string name = 2;
+}
+
+// Rules: custom checks.
+message CreateActorEgressPolicyRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required.
+  EgressPolicy egress_policy = 2;
+}
+
+// Rules: custom checks.
+message UpdateActorEgressPolicyRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required.
+  EgressPolicy egress_policy = 2;
+}
+
+message DeleteActorEgressPolicyRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required; dns-label; custom checks.
+  string name = 2;
+
+  DeleteOptions options = 3;
+}
+
+message GetTagRequest {
+  // Rules: required; hive required.
+  ObjectRef tag = 1;
+}
+
+message MintActorJwtRequest {
+  // Rules: required.
+  ObjectRef actor = 1;
+
+  // Rules: required; max items 16; unique values; each value: max length 512.
+  repeated string audiences = 2;
+
+  // Rules: required; min 300; max 3600.
+  int64 expiration_seconds = 3;
+}
+
+message MintActorJwtResponse {
+  string actor_jwt = 1 [ debug_redact = true ];
+
+  google.protobuf.Timestamp expire_time = 2;
+}
+
+message MintActorCertificateRequest {
+  // Rules: required.
+  ObjectRef actor = 1;
+
+  // Rules: required; uuid.
+  string actor_uid = 2;
+
+  // Rules: required; max bytes 16384.
+  bytes certificate_signing_request = 3;
+}
+
+message MintActorCertificateResponse {
+  repeated bytes actor_certificates = 1;
+}
+
+message ListTagsRequest {
+  // Rules: dns-label.
+  string hive = 1;
+
+  ListOptions options = 2;
+}
+
+message ListTagsResponse {
+  repeated Tag tags = 1;
+  string next_page_token = 2;
+}
+
+// Tags whichever snapshot the source Actor holds when the call runs.
+// Rules: custom checks.
+message CreateTagRequest {
+  // Rules: required.
+  Tag tag = 1;
+}
+
+// Updates mutable Tag fields; the snapshot never changes.
+message UpdateTagRequest {
+  // Rules: required; metadata required; custom checks.
+  Tag tag = 1;
+}
+
+message DeleteTagRequest {
+  // Rules: required; hive required.
+  ObjectRef tag = 1;
+
+  DeleteOptions options = 2;
+}
+
+// Optional preconditions for a delete. Zero values are ignored.
+message DeleteOptions {
+  // Delete only if the stored version matches.
+  // Rules: min 1.
+  int64 version = 1;
+
+  // Delete only if the stored uid matches.
+  // Rules: uuid.
+  string uid = 2;
+}
+
+// Pagination controls.
+message ListOptions {
+  // Rules: min 1.
+  int32 page_size = 1;
+
+  // Rules: max length 256.
+  string page_token = 2;
+}
+
+message ListWorkerActorAssignmentsRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+
+  ListOptions options = 2;
+}
+
+message ListWorkerActorAssignmentsResponse {
+  repeated ActorAssignment actor_assignments = 1;
+
+  string next_page_token = 2;
+}
+
+message ListWorkersRequest {
+  ListOptions options = 1;
+}
+
+message ListWorkersResponse {
+  repeated Worker workers = 1;
+
+  string next_page_token = 2;
+}
+
+message GetWorkerRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+}
+
+message CreateWorkerRequest {
+  // Rules: required.
+  Worker worker = 1;
+}
+
+message UpdateWorkerRequest {
+  // Rules: required; metadata required; custom checks.
+  Worker worker = 1;
+}
+
+message DeleteWorkerRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+
+  DeleteOptions options = 2;
+}
+
+message DrainWorkerRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+}
+
+message DrainWorkerResponse {
+  Worker worker = 1;
+}
+
+message MarkWorkerAvailableRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+}
+
+message MarkWorkerAvailableResponse {
+  Worker worker = 1;
+}
+
+message MarkWorkerUnavailableRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+}
+
+message MarkWorkerUnavailableResponse {
+  Worker worker = 1;
+}
+
+// Lists Actors page by page. Concurrent changes may cause items to be missed or repeated.
+message ListActorsRequest {
+  // Rules: dns-label.
+  string hive = 1;
+
+  ListOptions options = 2;
+}
+
+message ListActorsResponse {
+  repeated Actor actors = 1;
+
+  string next_page_token = 2;
+}
+
+// Worker is one schedulable worker pod. Global-scoped; its name is assigned by the
+// control plane and must be treated as opaque. Only labels and epochs change.
+message Worker {
+  option (resource) = {
+    scope : SCOPE_GLOBAL
+    plural : "Workers"
+  };
+
+  // Rules: required; hive forbidden.
+  ResourceMetadata metadata = 1;
+
+  // Rules: required; dns-label; immutable.
+  string worker_namespace = 2;
+  // Rules: required; dns-subdomain; immutable.
+  string worker_pool = 3;
+  // Rules: required; dns-subdomain; immutable.
+  string worker_pod = 4;
+  // Rules: required; uuid; immutable.
+  string worker_pod_uid = 5;
+  // Rules: required; dns-subdomain; immutable.
+  string node_name = 6;
+  // Rules: max length 2048; custom checks; immutable.
+  string worker_spiffe_id = 7;
+
+  // Rules: max entries 64; each key: label-key; each value: label-value.
+  map<string, string> labels = 8;
+
+  WorkerStatus status = 9;
+}
+
+// Scheduling state of a Worker.
+enum WorkerState {
+  WORKER_STATE_UNSPECIFIED = 0;
+
+  // Accepting new Actors.
+  WORKER_STATE_ACTIVE = 1;
+
+  // Shutting down; accepts nothing new. Terminal.
+  WORKER_STATE_DRAINING = 2;
+
+  // Temporarily not accepting new Actors.
+  WORKER_STATE_UNAVAILABLE = 3;
+}
+
+// Server-owned state of a Worker.
+message WorkerStatus {
+  // Rules: required; min 1; max 3.
+  WorkerState state = 1;
+
+  WorkerResources capacity = 2;
+
+  WorkerResources allocated = 3;
+
+  // Latest epoch reported by the worker process.
+  // Rules: min 0.
+  int64 observed_epoch = 4;
+
+  // Rules: max items 1; unique by sandbox_class.
+  repeated WorkerSandboxClass sandbox_classes = 5;
+
+  // Rules: max items 2; custom checks.
+  repeated string ips = 6;
+
+  // Latest epoch handed out by AcquireWorkerEpoch.
+  // Rules: min 0.
+  int64 issued_epoch = 7;
+
+  // Epoch the current worker process registered with.
+  // Rules: min 0.
+  int64 registered_epoch = 8;
+}
+
+// A sandbox class a Worker runs and the runtimes it offers for it.
+message WorkerSandboxClass {
+  // Rules: required; max length 63; custom checks.
+  string sandbox_class = 1;
+
+  // Rules: required.
+  WorkerSandboxRuntime default_runtime = 2;
+
+  // Rules: max items 32.
+  repeated WorkerSandboxRuntime restorable_runtimes = 3;
+}
+
+// One runtime a Worker offers for a sandbox class.
+message WorkerSandboxRuntime {
+  // Rules: required.
+  VersionedSandboxCompat version = 1;
+
+  RuntimeOverhead actor_overhead = 2;
+
+}
+
+// Memory an Actor uses beyond its own limit: a fixed part plus a part per GiB of limit.
+message RuntimeOverhead {
+  // Rules: min 0; max 1099511627776.
+  int64 memory_bytes = 1;
+
+  // Rules: min 0; max 1073741824.
+  int64 memory_bytes_per_gib = 2;
+}
+
+// Runtime an Actor runs under, as stamped on assignments and snapshots.
+message ActorSandboxRuntime {
+  // Rules: required; max length 63; custom checks.
+  string sandbox_class = 1;
+
+  // Rules: required.
+  VersionedSandboxCompat version = 2;
+
+}
+
+// Compatibility schema version plus attributes of a sandbox runtime.
+message VersionedSandboxCompat {
+  // Rules: required; max length 64.
+  string schema_version = 1;
+
+  // Rules: required; max items 32; unique by key.
+  repeated AttributeEntry attributes = 2;
+}
+
+// One compatibility attribute.
+message AttributeEntry {
+  // Rules: required; max length 128.
+  string key = 1;
+
+  // Rules: required; max length 256.
+  string value = 2;
+}
+
+// Capacity or allocation of a Worker.
+message WorkerResources {
+  // Rules: min 0; max 999999.
+  int64 cpu_millicores = 1;
+
+  // Rules: min 0.
+  int64 memory_bytes = 2;
+
+  // Number of Actors.
+  // Rules: min 1.
+  int32 actors = 3;
+}
+
+// Binding of an Actor to a Worker; a sub-resource of the Worker.
+message ActorAssignment {
+  option (resource) = {
+    parents : "Worker"
+    plural : "ActorAssignments"
+  };
+
+  // Rules: required; hive forbidden.
+  ResourceMetadata metadata = 1;
+
+  // Rules: required; hive required.
+  ObjectRef actor = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+
+  Resources resources = 4;
+}
+
+// WorkerService is how keepers report what their workers observe. It is separate from
+// Control because only keepers may call it, and only for workers on their own node.
+service WorkerService {
+  // Hands out a fresh epoch for a starting worker process.
+  rpc AcquireWorkerEpoch(AcquireWorkerEpochRequest) returns (AcquireWorkerEpochResponse);
+
+  // Activates an acquired epoch and records the worker's IPs and capacity.
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
+
+  // Records the sandbox runtimes a worker can run.
+  rpc SetWorkerSandboxRuntimes(SetWorkerSandboxRuntimesRequest) returns (SetWorkerSandboxRuntimesResponse);
+
+  // Issues a certificate for the tunnel of an Actor the calling worker hosts.
+  rpc MintWorkerActorCertificate(MintWorkerActorCertificateRequest) returns (MintWorkerActorCertificateResponse);
+
+  // Issues a JWT for an Actor the calling worker hosts.
+  rpc MintWorkerActorJwt(MintWorkerActorJwtRequest) returns (MintWorkerActorJwtResponse);
+
+  // Asks the control plane to suspend an Actor the calling worker hosts.
+  rpc RequestActorSuspend(RequestActorSuspendRequest) returns (RequestActorSuspendResponse);
+
+  // Reports the snapshots a keeper holds for an Actor.
+  rpc ReportActorSnapshotState(ReportActorSnapshotStateRequest) returns (ReportActorSnapshotStateResponse);
+
+  // Reports that an Actor's sandbox died on its own.
+  rpc ReportActorCrashed(ReportActorCrashedRequest) returns (ReportActorCrashedResponse);
+}
+
+message AcquireWorkerEpochRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+}
+
+message AcquireWorkerEpochResponse {
+  int64 epoch = 1;
+}
+
+message RegisterWorkerRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+
+  // Rules: required; min 1.
+  int64 epoch = 3;
+
+  // Rules: required; max items 2; custom checks.
+  repeated string ips = 4;
+
+  // Rules: required.
+  WorkerResources capacity = 2;
+}
+
+message RegisterWorkerResponse {
+  Worker worker = 1;
+}
+
+message SetWorkerSandboxRuntimesRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+
+  // Rules: required; min 1.
+  int64 epoch = 2;
+
+  // Rules: required; min items 1; max items 1; unique by sandbox_class.
+  repeated WorkerSandboxClass sandbox_classes = 3;
+}
+
+message SetWorkerSandboxRuntimesResponse {
+  Worker worker = 1;
+}
+
+message MintWorkerActorCertificateRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required; uuid.
+  string actor_uid = 2;
+
+  // Rules: required; max bytes 16384.
+  bytes certificate_signing_request = 3;
+
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 4;
+}
+
+message MintWorkerActorCertificateResponse {
+  repeated bytes actor_certificates = 1;
+}
+
+message MintWorkerActorJwtRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required; uuid.
+  string actor_uid = 2;
+
+  // Rules: required; max items 16; unique values; each value: min length 1; each value: max length 512.
+  repeated string audiences = 3;
+}
+
+message MintWorkerActorJwtResponse {
+  string actor_jwt = 1 [ debug_redact = true ];
+
+  google.protobuf.Timestamp expire_time = 2;
+}
+
+message RequestActorSuspendRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+
+  // Rules: required; hive required.
+  ObjectRef actor = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+}
+
+message RequestActorSuspendResponse {
+  Actor actor = 1;
+}
+
+message ReportActorCrashedRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef worker = 1;
+
+  // Rules: required; hive required.
+  ObjectRef actor = 2;
+
+  // Rules: required; uuid.
+  string actor_uid = 3;
+
+  // Rules: required; max length 4096.
+  string message = 4;
+}
+
+message ReportActorCrashedResponse {
+  Actor actor = 1;
+}
+
+message ReportActorSnapshotStateRequest {
+  // Rules: required; hive required.
+  ObjectRef actor = 1;
+
+  // Rules: required; uuid.
+  string actor_uid = 2;
+
+  // Rules: required.
+  ActorSnapshotState state = 3;
+}
+
+message ReportActorSnapshotStateResponse {}
+
+// Snapshots a keeper holds for one Actor.
+message ActorSnapshotState {
+  SnapshotReport latest_local = 1;
+
+  SnapshotReport uploading = 2;
+
+  SnapshotReport latest_durable = 3;
+
+  google.protobuf.Timestamp upload_due_time = 4;
+}
+
+// One snapshot a keeper holds or uploaded.
+message SnapshotReport {
+  // Rules: required; dns-label.
+  string uuid = 1;
+
+  // Rules: required; min 1.
+  int32 generation = 2;
+
+  // Rules: required; min 1; max 3.
+  SnapshotFidelity fidelity = 3;
+
+  // Rules: required.
+  ObjectSnapshot object = 4;
+
+  google.protobuf.Timestamp local_commit_time = 5;
+
+  google.protobuf.Timestamp durable_complete_time = 6;
+}
+
+// Role bindings of a parent resource (or of the whole deployment). Each parent has at
+// most one, named "default".
+message AccessPolicy {
+  option (resource) = {
+    parents : [ "Global", "Hive" ]
+    singleton : true
+    plural : "AccessPolicies"
+  };
+
+  // Rules: required; custom checks.
+  ResourceMetadata metadata = 1;
+
+  // Rules: max items 100.
+  repeated Binding bindings = 2;
+}
+
+// Grants one role to a set of members ("user:<id>").
+message Binding {
+  // Rules: required; max length 64.
+  string role = 1;
+
+  // Rules: required; unique values; max items 1500; each value: max length 512.
+  repeated string members = 2;
+}
+
+message GetGlobalAccessPolicyRequest {
+  // Rules: required; dns-label; custom checks.
+  string name = 1;
+}
+
+message CreateGlobalAccessPolicyRequest {
+  // Rules: required.
+  AccessPolicy access_policy = 1;
+}
+
+message UpdateGlobalAccessPolicyRequest {
+  // Rules: required.
+  AccessPolicy access_policy = 1;
+}
+
+message GetHiveAccessPolicyRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef hive = 1;
+
+  // Rules: required; dns-label; custom checks.
+  string name = 2;
+}
+
+message CreateHiveAccessPolicyRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef hive = 1;
+
+  // Rules: required.
+  AccessPolicy access_policy = 2;
+}
+
+message UpdateHiveAccessPolicyRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef hive = 1;
+
+  // Rules: required.
+  AccessPolicy access_policy = 2;
+}
+
+message DeleteHiveAccessPolicyRequest {
+  // Rules: required; hive forbidden.
+  ObjectRef hive = 1;
+
+  // Rules: required; dns-label; custom checks.
+  string name = 2;
+
+  DeleteOptions options = 3;
+}
+
+// Marks a message as an API resource.
+message ResourceAnnotation {
+  repeated string parents = 1;
+
+  bool singleton = 2;
+
+  Scope scope = 3;
+
+  string plural = 4;
+}
+
+// Whether a top-level resource belongs to a Hive.
+enum Scope {
+  SCOPE_UNSPECIFIED = 0;
+  SCOPE_HIVE = 1;
+  SCOPE_GLOBAL = 2;
+}
+
+// Describes an RPC of the API.
+message MethodAnnotation {
+  string resource = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  ResourceAnnotation resource = 50000;
+}
+
+extend google.protobuf.MethodOptions {
+  MethodAnnotation method = 50000;
+}

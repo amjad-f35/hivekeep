@@ -1,0 +1,325 @@
+syntax = "proto3";
+
+package hivekeep.worker.v1;
+
+// Worker controls the single sandbox guest inside a worker pod. A worker is either
+// "available" (ready to run or restore a workload) or "executing".
+service Worker {
+  // Starts a new workload.
+  rpc RunWorkload(RunWorkloadRequest) returns (RunWorkloadResponse) {}
+
+  // Saves the running workload and returns the worker to "available".
+  rpc CheckpointWorkload(CheckpointWorkloadRequest) returns (CheckpointWorkloadResponse) {}
+
+  // Restores a workload from files written by CheckpointWorkload.
+  rpc RestoreWorkload(RestoreWorkloadRequest) returns (RestoreWorkloadResponse) {}
+
+  // Returns a usage sample for the executing workload. Read-only and safe to poll.
+  rpc GetWorkloadStats(GetWorkloadStatsRequest) returns (GetWorkloadStatsResponse) {}
+
+  // Returns usage samples for every hosted workload without naming one.
+  rpc GetActiveWorkloadStats(GetActiveWorkloadStatsRequest) returns (GetActiveWorkloadStatsResponse) {}
+
+  // Stops the workload and cleans up its network and bundle state.
+  rpc TerminateWorkload(TerminateWorkloadRequest) returns (TerminateWorkloadResponse) {}
+}
+
+// Per-Actor directories the keeper prepared on the volume it shares with the worker.
+// All but checkpoint_dir and restore_dir live under root_dir.
+// Rules: custom checks.
+message ActorDirs {
+  // Rules: required; max length 4096.
+  string root_dir = 1;
+  // Rules: required; max length 4096.
+  string oci_bundle_dir = 2;
+  // Rules: required; max length 4096.
+  string checkpoint_dir = 3;
+  // Rules: required; max length 4096.
+  string restore_dir = 4;
+  // Rules: required; max length 4096.
+  string durable_dir_volume_mounts_dir = 5;
+  // Rules: required; max length 4096.
+  string system_info_volume_roots_dir = 6;
+  // Rules: required; max length 4096.
+  string external_volume_mounts_dir = 7;
+
+  // Runtime binaries staged for this Actor; the only place the sandbox may execute from.
+  // Rules: required; max length 4096.
+  string sandbox_assets_dir = 8;
+}
+
+message TerminateWorkloadRequest {
+  // Rules: required; dns-label.
+  string hive = 1;
+  // Rules: required; dns-label.
+  string actor_name = 2;
+  // Rules: required; uuid.
+  string actor_uid = 3;
+  // Rules: dns-label.
+  string actor_template_hive = 4;
+  // Rules: dns-label.
+  string actor_template_name = 5;
+
+  // Empty for runtimes that do not use runsc.
+  // Rules: max length 4096.
+  string runsc_path = 6;
+  // Rules: required.
+  WorkloadSpec spec = 7;
+  // Rules: required.
+  ActorDirs actor_dirs = 8;
+}
+
+message TerminateWorkloadResponse {
+}
+
+message RunWorkloadRequest {
+  // Rules: required; dns-label.
+  string hive = 1;
+  // Rules: required; dns-label.
+  string actor_name = 2;
+  // Rules: required; uuid.
+  string actor_uid = 3;
+  // Rules: dns-label.
+  string actor_template_hive = 4;
+  // Rules: dns-label.
+  string actor_template_name = 5;
+
+  // Empty for runtimes that do not use runsc.
+  // Rules: max length 4096.
+  string runsc_path = 6;
+
+  // Rules: required; containers required.
+  WorkloadSpec spec = 7;
+
+  // Runtime asset name to local path fetched by the keeper.
+  // Rules: max entries 16; each key: max length 64; each value: max length 4096.
+  map<string, string> runtime_asset_paths = 8;
+
+  optional EgressGateway egress_gateway = 9;
+
+  // Declared size of the Actor.
+  ResourceRequirements resources = 10;
+  // Rules: required.
+  ActorDirs actor_dirs = 12;
+}
+
+// Tunnelled egress endpoint for one activation.
+message EgressGateway {
+  // Rules: required; max length 261; custom checks.
+  string address = 1;
+}
+
+// Containers of a workload, as resolved by the keeper.
+message WorkloadSpec {
+  // Rules: max items 10; unique by name.
+  repeated Container containers = 1;
+}
+
+// One container; mounts are split by volume kind.
+// Rules: custom checks.
+message Container {
+  // Rules: required; dns-label.
+  string name = 1;
+  WakeupProbe wakeup_probe = 2;
+
+  // Rules: max items 32; unique by mount_path.
+  repeated VolumeMount durable_dir_volume_mounts = 3;
+
+  // Rules: max items 32; unique by mount_path.
+  repeated VolumeMount external_volume_mounts = 4;
+
+  // Rules: max items 32; unique by mount_path.
+  repeated VolumeMount system_info_volume_mounts = 5;
+
+  // Rules: max items 32; unique by mount_path.
+  repeated VolumeMount image_volume_mounts = 6;
+
+  ContainerSpec container_spec = 7;
+}
+
+// Process and limits of a container, already resolved by the keeper.
+message ContainerSpec {
+  // Final argv.
+  repeated string args = 1;
+
+  // Final environment as KEY=VALUE.
+  repeated string env = 2 [ debug_redact = true ];
+
+  // Final capability set, CAP_-prefixed.
+  repeated string capabilities = 3;
+
+  ResourceRequirements resources = 4;
+}
+
+// Compute resources a workload may use.
+message ResourceRequirements {
+  Resources limits = 1;
+}
+
+// An amount of each compute resource. Zero means none.
+message Resources {
+  // Rules: min 0; max 999999.
+  int64 cpu_millicores = 1;
+
+  // Rules: min 0.
+  int64 memory_bytes = 2;
+}
+
+// A volume mounted into a container.
+message VolumeMount {
+  // Rules: required; dns-label.
+  string name = 1;
+  // Rules: required; max length 4096; custom checks.
+  string mount_path = 2;
+}
+
+// Readiness check.
+message WakeupProbe {
+  // Rules: required.
+  HttpGetAction http_get = 1;
+
+  // Rules: required; min 1; max 3600.
+  int32 timeout_seconds = 2;
+}
+
+// HTTP GET against the container.
+message HttpGetAction {
+  // Rules: required; max length 1024; custom checks.
+  string path = 1;
+
+  // Rules: required; min 1; max 65535.
+  int32 port = 2;
+}
+
+message RunWorkloadResponse {
+  int64 worker_epoch = 1;
+}
+
+// State layers a snapshot holds; mirrors the public enum.
+enum SnapshotFidelity {
+  SNAPSHOT_FIDELITY_UNSPECIFIED = 0;
+  SNAPSHOT_FIDELITY_VOLUMES = 1;
+  SNAPSHOT_FIDELITY_ROOTFS = 2;
+  SNAPSHOT_FIDELITY_MEMORY = 3;
+}
+
+message CheckpointWorkloadRequest {
+  // Rules: required; dns-label.
+  string hive = 1;
+  // Rules: required; dns-label.
+  string actor_name = 2;
+  // Rules: required; uuid.
+  string actor_uid = 3;
+  // Rules: dns-label.
+  string actor_template_hive = 4;
+  // Rules: dns-label.
+  string actor_template_name = 5;
+
+  // Rules: max length 4096.
+  string runsc_path = 6;
+
+  // Rules: required.
+  WorkloadSpec spec = 7;
+
+  // Rules: required; min 1; max 3.
+  SnapshotFidelity fidelity = 8;
+  // Rules: required.
+  ActorDirs actor_dirs = 9;
+}
+
+message CheckpointWorkloadResponse {
+  // Files written to the checkpoint directory, relative names.
+  repeated string snapshot_files = 1;
+
+  // Subset sufficient for a VOLUMES-fidelity restore.
+  repeated string data_snapshot_files = 2;
+}
+
+message RestoreWorkloadRequest {
+  // Rules: required; dns-label.
+  string hive = 1;
+  // Rules: required; dns-label.
+  string actor_name = 2;
+  // Rules: required; uuid.
+  string actor_uid = 3;
+  // Rules: dns-label.
+  string actor_template_hive = 4;
+  // Rules: dns-label.
+  string actor_template_name = 5;
+
+  // Rules: max length 4096.
+  string runsc_path = 6;
+
+  // Rules: required; containers required.
+  WorkloadSpec spec = 7;
+
+  // Rules: max entries 16; each key: max length 64; each value: max length 4096.
+  map<string, string> runtime_asset_paths = 8;
+
+  // Rules: required; min 1; max 3.
+  SnapshotFidelity fidelity = 9;
+
+  optional EgressGateway egress_gateway = 10;
+
+  ResourceRequirements resources = 11;
+  // Rules: required.
+  ActorDirs actor_dirs = 13;
+
+  // restore_dir holds a preserved local snapshot that must not be modified.
+  bool preserve_restore_dir = 14;
+}
+
+message RestoreWorkloadResponse {
+  int64 worker_epoch = 1;
+}
+
+message GetWorkloadStatsRequest {
+  // Actor the caller expects; NOT_FOUND on mismatch.
+  // Rules: required; uuid.
+  string actor_uid = 1;
+}
+
+// How a usage sample was measured. Different sources are not comparable.
+enum StatsSource {
+  STATS_SOURCE_UNSPECIFIED = 0;
+  STATS_SOURCE_CGROUP = 1;
+  STATS_SOURCE_GUEST_AGENT = 2;
+}
+
+// One usage sample of a sandbox.
+message WorkloadStatsSample {
+  string hive = 1;
+  string actor_name = 2;
+  string actor_uid = 3;
+  string actor_template_hive = 4;
+  string actor_template_name = 5;
+
+  string sandbox_class = 6;
+
+  StatsSource source = 7;
+
+  uint64 memory_current_bytes = 8;
+  uint64 memory_peak_bytes = 9;
+
+  // Current memory minus reclaimable cache.
+  uint64 memory_working_set_bytes = 10;
+
+  // CPU time since the activation began.
+  uint64 cpu_usage_usec = 11;
+
+  int64 observed_at_unix_nano = 12;
+
+  // Start of the activation this sample belongs to.
+  int64 epoch_unix_nano = 13;
+}
+
+message GetWorkloadStatsResponse {
+  WorkloadStatsSample sample = 1;
+}
+
+message GetActiveWorkloadStatsRequest {
+}
+
+message GetActiveWorkloadStatsResponse {
+  repeated WorkloadStatsSample samples = 1;
+}
