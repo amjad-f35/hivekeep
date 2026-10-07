@@ -8,9 +8,14 @@
 //! [`defaults`], which operate on the wire messages of `hivekeep-proto`.
 
 pub mod access;
+pub mod actor_log;
 pub mod actor_state;
+pub mod attr;
 pub mod compute;
+pub mod cpu_features;
+pub mod defaults;
 pub mod field;
+pub mod hardware;
 pub mod hostname;
 pub mod image_ref;
 pub mod names;
