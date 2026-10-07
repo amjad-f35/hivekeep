@@ -1,0 +1,160 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.98"
+publish = false
+
+[workspace.dependencies]
+# Internal crates
+hivekeep-proto = { path = "crates/hivekeep-proto" }
+hivekeep-core = { path = "crates/hivekeep-core" }
+hivekeep-store = { path = "crates/hivekeep-store" }
+hivekeep-identity = { path = "crates/hivekeep-identity" }
+hivekeep-sandbox-gvisor = { path = "crates/hivekeep-sandbox-gvisor" }
+hivekeep-sandbox-microvm = { path = "crates/hivekeep-sandbox-microvm" }
+hivekeep-node = { path = "crates/hivekeep-node" }
+hivekeep-keeper = { path = "crates/hivekeep-keeper" }
+hivekeep-k8s = { path = "crates/hivekeep-k8s" }
+hivekeep-imagecache = { path = "crates/hivekeep-imagecache" }
+hivekeep-objectstore = { path = "crates/hivekeep-objectstore" }
+hivekeep-gate = { path = "crates/hivekeep-gate" }
+hivekeep-telemetry = { path = "crates/hivekeep-telemetry" }
+
+# gRPC / protobuf
+tonic = "0.14.8"
+tonic-prost = "0.14.8"
+tonic-prost-build = "0.14.8"
+prost = "0.14.4"
+prost-types = "0.14.4"
+prost-build = "0.14.4"
+
+# Async runtime
+tokio = { version = "1.54.1", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+# Errors
+thiserror = "2.0.21"
+anyhow = "1.0.104"
+
+# Observability
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+
+# CLI
+clap = { version = "4.6.7", features = ["derive", "env"] }
+
+# Storage
+sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls", "macros", "migrate", "uuid", "chrono", "json"] }
+
+# Identity, time, crypto
+uuid = { version = "1.29.0", features = ["v4", "serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+time = "0.3.55"
+rcgen = "0.14.10"
+x509-parser = "0.18.1"
+# One JWT crypto backend for the workspace: aws-lc-rs (jsonwebtoken has no
+# ring backend, and ES512 verification uses aws-lc-rs directly).
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["aws_lc_rs", "use_pem"] }
+aws-lc-rs = "1.18.2"
+
+# Utilities
+regex = "1.13.1"
+url = "2.5.8"
+ipnet = "2.12.2"
+
+# Linux syscalls
+nix = { version = "0.31.3", features = ["fs", "mount", "process", "signal", "user", "sched"] }
+
+# Async plumbing
+async-trait = "0.1.92"
+futures = "0.3.34"
+tokio-stream = { version = "0.1.19", features = ["net"] }
+tokio-util = "0.7.20"
+bytes = "1.12.1"
+
+# HTTP / TLS
+hyper = { version = "1.12.0", features = ["full"] }
+hyper-util = { version = "0.1.21", features = ["full"] }
+http = "1.5.0"
+tower = { version = "0.5.3", features = ["full"] }
+# ring is the TLS provider everywhere; binaries install it at startup
+# because aws-lc-rs is linked too (hivekeep-identity, reqwest).
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
+rustls-pemfile = "2.2.0"
+webpki = { package = "rustls-webpki", version = "0.103.16", default-features = false, features = ["ring", "std"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "stream"] }
+
+# Hashing / encoding
+sha2 = "0.11.1"
+hex = "0.4.3"
+base64 = "0.23.1"
+
+# Misc
+parking_lot = "0.12"
+humantime = "2.4.0"
+prometheus = "0.14.0"
+oci-spec = "0.10.0"
+flate2 = "1.1.10"
+tar = "0.4.46"
+walkdir = "2.5.0"
+libc = "0.2"
+serde_yaml = "0.9.34"
+serde_yaml_ng = "0.10.0"
+prost-reflect = { version = "0.16.5", features = ["serde"] }
+cap-std = "4.0.3"
+zstd = "0.13.3"
+http-body-util = "0.1.3"
+rand = "0.9.5"
+tonic-health = "0.14.8"
+tonic-reflection = "0.14.8"
+rustls-native-certs = "0.8.5"
+quick-xml = "0.39.4"
+percent-encoding = "2.3.2"
+hmac = "0.13.0"
+filetime = "0.2.29"
+bzip2 = "0.6.1"
+schemars = "1.2.1"
+form_urlencoded = "1.2.2"
+rsa = "0.9.10"
+rand_core = "0.6.4"
+
+# Kubernetes (k8s-openapi API level v1_36 across the workspace; crates add
+# the kube features they use).
+kube = { version = "4.2.0", default-features = false, features = ["client", "rustls-tls", "ring"] }
+k8s-openapi = { version = "0.28.0", features = ["v1_36"] }
+
+# OpenTelemetry (hivekeep-telemetry is the only direct user)
+opentelemetry = { version = "0.33", features = ["trace", "metrics", "logs"] }
+opentelemetry_sdk = { version = "0.33", features = ["trace", "metrics", "logs", "rt-tokio", "spec_unstable_metrics_views"] }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["grpc-tonic", "trace", "metrics", "logs"] }
+opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic", "trace", "metrics", "logs"] }
+opentelemetry-prometheus = "0.33"
+opentelemetry-semantic-conventions = "0.33"
+tracing-opentelemetry = "0.34"
+
+# Networking and protocol crates used by one or two members; members add
+# the features they need.
+h2 = "0.4.20"
+http-body = "1.0.1"
+httparse = "1.10.1"
+socket2 = { version = "0.6.5", features = ["all"] }
+envoy-types = "0.7.7"
+tokio-tungstenite = { version = "0.29.0", default-features = false, features = ["handshake"] }
+axum = { version = "0.8.9", default-features = false, features = ["tokio", "http1"] }
+lru = "0.19"
+protox = "0.10.0"
+zeromq = { version = "0.7.0", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
+rmpv = "1.3.1"
+object_store = { version = "0.14.2", default-features = false }
+
+# Testing
+tempfile = "3.27.0"
