@@ -8,6 +8,7 @@
 //! [`defaults`], which operate on the wire messages of `hivekeep-proto`.
 
 pub mod access;
+pub mod actor_event;
 pub mod actor_log;
 pub mod actor_state;
 pub mod attr;
@@ -25,4 +26,5 @@ pub mod sandbox_class;
 pub mod snapshot;
 pub mod spiffe;
 pub mod uri;
+pub mod validation;
 pub mod volume_path;

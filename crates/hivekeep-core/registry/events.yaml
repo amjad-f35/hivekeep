@@ -1,0 +1,103 @@
+# The Actor events Hivekeep emits as log records. Each group's attribute
+# lists are the reviewable form of the matching `Event`'s `keys` and
+# `conditional` in hivekeep-core's actor_event module; a test holds the two
+# in step both ways, so an event is declared here before it ships.
+#
+# A required attribute is on every record. A conditionally required one is
+# present exactly when its condition holds: absent means not measured.
+
+groups:
+  - id: event.hk.actor.state_changed
+    type: event
+    stability: development
+    name: hk.actor.state_changed
+    brief: An Actor reached a new state.
+    note: >
+      One record per committed transition, from creation to deletion. The
+      latest record for an hk.actor.uid gives its current state and when that
+      state began. Never sample or filter this stream.
+    attributes:
+      - ref: hk.hive
+        requirement_level: required
+      - ref: hk.actor.name
+        requirement_level: required
+      - ref: hk.actor.uid
+        requirement_level: required
+      - ref: hk.template.hive
+        requirement_level: required
+      - ref: hk.template.name
+        requirement_level: required
+      - ref: hk.actor.operation.name
+        requirement_level: required
+      - ref: hk.actor.state
+        requirement_level: required
+
+  - id: event.hk.actor.crashed
+    type: event
+    stability: development
+    name: hk.actor.crashed
+    brief: An Actor was lost.
+    note: >
+      Written beside the crash counter under the same guard; this record names
+      the Actor, which no metric label may. hk.actor.state is always crashed.
+    attributes:
+      - ref: hk.hive
+        requirement_level: required
+      - ref: hk.actor.name
+        requirement_level: required
+      - ref: hk.actor.uid
+        requirement_level: required
+      - ref: hk.template.hive
+        requirement_level: required
+      - ref: hk.template.name
+        requirement_level: required
+      - ref: hk.actor.operation.name
+        requirement_level: required
+      - ref: hk.actor.state
+        requirement_level: required
+
+  - id: event.hk.actor.usage_sampled
+    type: event
+    stability: development
+    name: hk.actor.usage_sampled
+    brief: A measurement of one Actor's CPU and memory.
+    note: >
+      Workers write one per Actor on a timer, plus an initial and a final one
+      per activation (hk.stats.kind). Group by hk.stats.source before adding
+      values; hk.stats.cpu.time restarts with each hk.actor.epoch. This stream
+      may be sampled.
+    attributes:
+      - ref: hk.hive
+        requirement_level: required
+      - ref: hk.actor.name
+        requirement_level: required
+      - ref: hk.actor.uid
+        requirement_level: required
+      - ref: hk.template.hive
+        requirement_level: required
+      - ref: hk.template.name
+        requirement_level: required
+      - ref: hk.workerpool.namespace
+        requirement_level: required
+      - ref: hk.workerpool.name
+        requirement_level: required
+      - ref: hk.sandbox.class
+        requirement_level: required
+      - ref: hk.stats.source
+        requirement_level: required
+      - ref: hk.stats.kind
+        requirement_level: required
+      - ref: hk.actor.epoch
+        requirement_level: required
+      - ref: hk.stats.memory.usage
+        requirement_level:
+          conditionally_required: hk.stats.source is not unspecified.
+      - ref: hk.stats.memory.peak
+        requirement_level:
+          conditionally_required: hk.stats.source is not unspecified and the source reports a peak.
+      - ref: hk.stats.memory.working_set
+        requirement_level:
+          conditionally_required: hk.stats.source is not unspecified.
+      - ref: hk.stats.cpu.time
+        requirement_level:
+          conditionally_required: hk.stats.source is not unspecified.
