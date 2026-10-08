@@ -1,0 +1,28 @@
+[package]
+name = "hivekeep-store"
+description = "Persistence layer of the Hivekeep control plane: the Store traits plus in-memory and PostgreSQL backends."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+hivekeep-core = { workspace = true }
+hivekeep-proto = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+parking_lot = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
