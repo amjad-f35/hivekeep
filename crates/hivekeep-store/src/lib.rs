@@ -11,16 +11,23 @@
 //! write rules ([`resource`]), so they are interchangeable behind
 //! `Arc<dyn Store>`.
 
+pub mod api;
 pub mod error;
 pub mod lease;
 pub mod list;
+pub mod memory;
 pub mod page_token;
+pub mod postgres;
 pub mod precondition;
 pub mod resource;
 pub mod watch;
+
+pub use api::*;
 pub use error::{BoxError, Result, StoreError};
 pub use lease::Lease;
 pub use list::{ListOptions, ListResponse, DEFAULT_PAGE_SIZE};
+pub use memory::MemoryStore;
+pub use postgres::{PgConfig, PgStore};
 pub use precondition::{DeletePreconditions, Precondition};
 pub use resource::Resource;
 pub use watch::{WorkerEvent, WorkerEventType, WorkerWatch};
