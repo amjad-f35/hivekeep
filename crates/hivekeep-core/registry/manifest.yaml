@@ -1,0 +1,4 @@
+# The OpenTelemetry Weaver manifest of this registry.
+name: hivekeep
+description: The event semantic conventions of Hivekeep.
+schema_url: https://hivekeep.io/schemas/hivekeep/1.0.0

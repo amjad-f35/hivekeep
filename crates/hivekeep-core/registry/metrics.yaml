@@ -1,0 +1,457 @@
+# The metric instruments Hivekeep components emit, for OpenTelemetry Weaver.
+#
+# `scripts/verify/metrics.sh` holds this file and the code in step: every
+# Prometheus family the components register (a `hivekeep_*` or
+# `controller_runtime_*` name) must be declared here, and every metric
+# declared here must be registered by the component its `note` names. The
+# Prometheus name is derived from `metric_name`: dots become underscores,
+# then the unit suffix (`s` → `_seconds`, `By` → `_bytes`), then `_total`
+# for a counter. The end-to-end suite asserts on these names through the
+# collector.
+#
+# Attributes reference the registry attributes; labels outside it
+# (`outcome`, `error_type`, `cache`, `file_name`, `controller`, `result`)
+# are named in the brief.
+
+groups:
+  # hivekeep-api
+  - id: metric.hivekeep.actor.lifecycle_operation.duration
+    type: metric
+    metric_name: hivekeep.actor.lifecycle_operation.duration
+    stability: development
+    brief: Duration of an Actor lifecycle operation; also labelled `error_type`.
+    note: "component: hivekeep-api"
+    instrument: histogram
+    unit: s
+    attributes:
+      - ref: hk.actor.operation.name
+        requirement_level: required
+      - ref: hk.template.name
+        requirement_level: recommended
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.workerpool.namespace
+        requirement_level: recommended
+      - ref: hk.workerpool.name
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+      - ref: hk.snapshot.kind
+        requirement_level: recommended
+      - ref: hk.snapshot.fidelity
+        requirement_level: recommended
+
+  - id: metric.hivekeep.scheduler.assignment.duration
+    type: metric
+    metric_name: hivekeep.scheduler.assignment.duration
+    stability: development
+    brief: Duration of one worker-assignment attempt; also labelled `outcome` and `error_type`.
+    note: "component: hivekeep-api"
+    instrument: histogram
+    unit: s
+    attributes:
+      - ref: hk.workerpool.namespace
+        requirement_level: recommended
+      - ref: hk.workerpool.name
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+
+  - id: metric.hivekeep.actor.crashes
+    type: metric
+    metric_name: hivekeep.actor.crashes
+    stability: development
+    brief: Actors moved to CRASHED.
+    note: "component: hivekeep-api"
+    instrument: counter
+    unit: "{crash}"
+    attributes:
+      - ref: hk.actor.operation.name
+        requirement_level: required
+      - ref: hk.template.hive
+        requirement_level: required
+      - ref: hk.template.name
+        requirement_level: required
+      - ref: hk.workerpool.namespace
+        requirement_level: required
+      - ref: hk.workerpool.name
+        requirement_level: required
+      - ref: hk.sandbox.class
+        requirement_level: required
+
+  - id: metric.hivekeep.actor.state_changes
+    type: metric
+    metric_name: hivekeep.actor.state_changes
+    stability: development
+    brief: Committed Actor state changes by the state reached, one per hk.actor.state_changed or hk.actor.crashed event.
+    note: "component: hivekeep-api"
+    instrument: counter
+    unit: "{event}"
+    attributes:
+      - ref: hk.actor.state
+        requirement_level: required
+
+  - id: metric.hivekeep.workerpool.workers
+    type: metric
+    metric_name: hivekeep.workerpool.workers
+    stability: development
+    brief: Workers by pool, scheduling state and sandbox class.
+    note: "component: hivekeep-api"
+    instrument: gauge
+    unit: "{worker}"
+    attributes:
+      - ref: hk.workerpool.namespace
+        requirement_level: required
+      - ref: hk.workerpool.name
+        requirement_level: required
+      - ref: hk.worker.state
+        requirement_level: required
+      - ref: hk.sandbox.class
+        requirement_level: required
+
+  # hivekeep-controller
+  - id: metric.hivekeep.workerpool.desired_workers
+    type: metric
+    metric_name: hivekeep.workerpool.desired_workers
+    stability: development
+    brief: Worker pods a WorkerPool asks for (spec.replicas).
+    note: "component: hivekeep-controller"
+    instrument: gauge
+    unit: "{worker}"
+    attributes:
+      - ref: hk.workerpool.namespace
+        requirement_level: required
+      - ref: hk.workerpool.name
+        requirement_level: required
+
+  - id: metric.hivekeep.workerpool.ready_workers
+    type: metric
+    metric_name: hivekeep.workerpool.ready_workers
+    stability: development
+    brief: Ready worker pods of a WorkerPool (status.readyReplicas).
+    note: "component: hivekeep-controller"
+    instrument: gauge
+    unit: "{worker}"
+    attributes:
+      - ref: hk.workerpool.namespace
+        requirement_level: required
+      - ref: hk.workerpool.name
+        requirement_level: required
+
+  - id: metric.controller_runtime.reconcile
+    type: metric
+    metric_name: controller_runtime.reconcile
+    stability: development
+    brief: Reconciles per controller (`controller`) and result (`result`).
+    note: "component: hivekeep-controller"
+    instrument: counter
+    unit: "{reconcile}"
+
+  - id: metric.controller_runtime.reconcile_errors
+    type: metric
+    metric_name: controller_runtime.reconcile_errors
+    stability: development
+    brief: Failed reconciles per controller (`controller`).
+    note: "component: hivekeep-controller"
+    instrument: counter
+    unit: "{reconcile}"
+
+  - id: metric.controller_runtime.reconcile_time
+    type: metric
+    metric_name: controller_runtime.reconcile_time
+    stability: development
+    brief: Reconcile durations per controller (`controller`).
+    note: "component: hivekeep-controller"
+    instrument: histogram
+    unit: s
+
+  # hivekeep-gate
+  - id: metric.hivekeep.gate.router.route.duration
+    type: metric
+    metric_name: hivekeep.gate.router.route.duration
+    stability: development
+    brief: Time the router spent routing one request, resume included.
+    note: "component: hivekeep-gate"
+    instrument: histogram
+    unit: s
+
+  - id: metric.hivekeep.gate.router.parking.active
+    type: metric
+    metric_name: hivekeep.gate.router.parking.active
+    stability: development
+    brief: Requests parked while their Actor resumes.
+    note: "component: hivekeep-gate"
+    instrument: gauge
+    unit: "{request}"
+
+  - id: metric.hivekeep.gate.router.parking.rejected
+    type: metric
+    metric_name: hivekeep.gate.router.parking.rejected
+    stability: development
+    brief: Requests refused because the parking lot was full.
+    note: "component: hivekeep-gate"
+    instrument: counter
+    unit: "{request}"
+
+  - id: metric.hivekeep.gate.router.parking.wait.duration
+    type: metric
+    metric_name: hivekeep.gate.router.parking.wait.duration
+    stability: development
+    brief: How long parked requests waited.
+    note: "component: hivekeep-gate"
+    instrument: histogram
+    unit: s
+
+  # hivekeep-imagecache (in the keeper)
+  - id: metric.hivekeep.imagecache.requests
+    type: metric
+    metric_name: hivekeep.imagecache.requests
+    stability: development
+    brief: Image cache requests by outcome.
+    note: "component: hivekeep-imagecache"
+    instrument: counter
+    unit: "{request}"
+
+  # keeper
+  - id: metric.hivekeep.filecache.size
+    type: metric
+    metric_name: hivekeep.filecache.size
+    stability: development
+    brief: Bytes held by a node file cache (`cache`).
+    note: "component: hivekeep-keeper"
+    instrument: gauge
+    unit: By
+
+  - id: metric.hivekeep.filecache.evictions
+    type: metric
+    metric_name: hivekeep.filecache.evictions
+    stability: development
+    brief: Files evicted from a node file cache (`cache`).
+    note: "component: hivekeep-keeper"
+    instrument: counter
+    unit: "{file}"
+
+  - id: metric.hivekeep.filecache.gc_passes
+    type: metric
+    metric_name: hivekeep.filecache.gc_passes
+    stability: development
+    brief: File cache collection passes by `cache` and `outcome`.
+    note: "component: hivekeep-keeper"
+    instrument: counter
+    unit: "{pass}"
+
+  - id: metric.hivekeep.actor.restore.duration
+    type: metric
+    metric_name: hivekeep.actor.restore.duration
+    stability: development
+    brief: Duration of an Actor restore, per phase.
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: s
+    attributes:
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.template.name
+        requirement_level: recommended
+      - ref: hk.snapshot.fidelity
+        requirement_level: recommended
+      - ref: hk.snapshot.kind
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+      - ref: hk.snapshot.phase
+        requirement_level: required
+
+  - id: metric.hivekeep.actor.checkpoint.duration
+    type: metric
+    metric_name: hivekeep.actor.checkpoint.duration
+    stability: development
+    brief: Duration of an Actor checkpoint, per phase.
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: s
+    attributes:
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.template.name
+        requirement_level: recommended
+      - ref: hk.snapshot.fidelity
+        requirement_level: recommended
+      - ref: hk.snapshot.kind
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+      - ref: hk.snapshot.phase
+        requirement_level: required
+
+  - id: metric.hivekeep.keeper.snapshot.size
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.size
+    stability: development
+    brief: Size of one snapshot file (`file_name`).
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: By
+    attributes:
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.template.name
+        requirement_level: recommended
+
+  - id: metric.hivekeep.keeper.snapshot.upload.duration
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.upload.duration
+    stability: development
+    brief: Time to make a snapshot durable; also labelled `error_type`.
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: s
+    attributes:
+      - ref: hk.snapshot.fidelity
+        requirement_level: recommended
+
+  - id: metric.hivekeep.keeper.snapshot.detach.duration
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.detach.duration
+    stability: development
+    brief: Time to detach an Actor after its snapshot; also labelled `error_type`.
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: s
+    attributes:
+      - ref: hk.snapshot.fidelity
+        requirement_level: recommended
+
+  - id: metric.hivekeep.keeper.snapshot.upload_overdue.duration
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.upload_overdue.duration
+    stability: development
+    brief: How long uploads ran past their deadline.
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: s
+
+  - id: metric.hivekeep.keeper.snapshot.detach_overdue.duration
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.detach_overdue.duration
+    stability: development
+    brief: How long detaches ran past their deadline.
+    note: "component: hivekeep-keeper"
+    instrument: histogram
+    unit: s
+
+  - id: metric.hivekeep.keeper.snapshot.upload_overdue_actors
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.upload_overdue_actors
+    stability: development
+    brief: Actors whose snapshot upload is overdue, by band.
+    note: "component: hivekeep-keeper"
+    instrument: gauge
+    unit: "{actor}"
+    attributes:
+      - ref: hk.snapshot.upload_overdue_band
+        requirement_level: required
+
+  - id: metric.hivekeep.keeper.snapshot.undurable_age_max
+    type: metric
+    metric_name: hivekeep.keeper.snapshot.undurable_age_max
+    stability: development
+    brief: Age of the oldest snapshot not yet durable.
+    note: "component: hivekeep-keeper"
+    instrument: gauge
+    unit: s
+
+  - id: metric.hivekeep.actor.stats.cpu_time
+    type: metric
+    metric_name: hivekeep.actor.stats.cpu_time
+    stability: development
+    brief: CPU time Actors used, from the stats poller.
+    note: "component: hivekeep-keeper"
+    instrument: counter
+    unit: s
+    attributes:
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.template.name
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+
+  - id: metric.hivekeep.actor.stats.memory_usage
+    type: metric
+    metric_name: hivekeep.actor.stats.memory_usage
+    stability: development
+    brief: Memory Actors use, from the stats poller.
+    note: "component: hivekeep-keeper"
+    instrument: gauge
+    unit: By
+    attributes:
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.template.name
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+
+  - id: metric.hivekeep.actor.stats.memory_working_set
+    type: metric
+    metric_name: hivekeep.actor.stats.memory_working_set
+    stability: development
+    brief: Working-set memory of Actors, from the stats poller.
+    note: "component: hivekeep-keeper"
+    instrument: gauge
+    unit: By
+    attributes:
+      - ref: hk.template.hive
+        requirement_level: recommended
+      - ref: hk.template.name
+        requirement_level: recommended
+      - ref: hk.sandbox.class
+        requirement_level: recommended
+
+  - id: metric.hivekeep.actor.stats.sampled_actors
+    type: metric
+    metric_name: hivekeep.actor.stats.sampled_actors
+    stability: development
+    brief: Actors the last stats poll sampled.
+    note: "component: hivekeep-keeper"
+    instrument: gauge
+    unit: "{actor}"
+
+  # hivekeep-credential-provider
+  - id: metric.hivekeep.credprovider.fetch_secret
+    type: metric
+    metric_name: hivekeep.credprovider.fetch_secret
+    stability: development
+    brief: FetchSecret calls by gRPC status (`code`).
+    note: "component: hivekeep-credential-provider"
+    instrument: counter
+    unit: "{call}"
+
+  - id: metric.hivekeep.credprovider.fetch_secret.duration
+    type: metric
+    metric_name: hivekeep.credprovider.fetch_secret.duration
+    stability: development
+    brief: FetchSecret latency by gRPC status (`code`).
+    note: "component: hivekeep-credential-provider"
+    instrument: histogram
+    unit: s
+
+  - id: metric.hivekeep.credprovider.build_info
+    type: metric
+    metric_name: hivekeep.credprovider.build_info
+    stability: development
+    brief: Always 1, labelled with the running `version`.
+    note: "component: hivekeep-credential-provider"
+    instrument: gauge
+    unit: "1"
+
+  # hivekeep-telemetry
+  - id: metric.hivekeep.telemetry.bridge.up
+    type: metric
+    metric_name: hivekeep.telemetry.bridge.up
+    stability: development
+    brief: 1 while a component's Prometheus registry is bridged onto the OTLP push.
+    note: "component: hivekeep-telemetry (OpenTelemetry instrument)"
+    instrument: gauge
+    unit: "1"

@@ -1,0 +1,248 @@
+# The attributes Hivekeep's events carry, for OpenTelemetry Weaver
+# (`scripts/verify/metrics.sh` runs `weaver registry check` on this
+# directory). The values of each enum match the constants in hivekeep-core's
+# attr module.
+
+groups:
+  - id: registry.hk.identity
+    type: attribute_group
+    brief: Which Actor, hive and template a record is about.
+    attributes:
+    - id: hk.hive
+      stability: development
+      type: string
+      brief: The hive (tenant boundary) of the Actor.
+      examples: [hivekeep-demo-counter]
+    - id: hk.actor.name
+      stability: development
+      type: string
+      brief: The Actor name, unique within its hive while it exists.
+      examples: [counter-1]
+    - id: hk.actor.uid
+      stability: development
+      type: string
+      brief: The server-assigned UID, unique across the Actor's whole life.
+      examples: ["0b9b4f8e-1c55-4c43-9d9a-6e0c1a7d2f10"]
+    - id: hk.template.hive
+      stability: development
+      type: string
+      brief: The hive of the template the Actor was built from.
+      examples: [hivekeep-demo-counter]
+    - id: hk.template.name
+      stability: development
+      type: string
+      brief: The name of the template the Actor was built from, or "unknown".
+      examples: [counter]
+    - id: hk.actor.epoch
+      stability: development
+      type: int
+      brief: The worker process epoch an activation ran under; usage counters restart with it.
+      examples: [1730000000000000000]
+
+  - id: registry.hk.lifecycle
+    type: attribute_group
+    brief: Where an Actor is in its lifecycle.
+    attributes:
+    - id: hk.actor.state
+      stability: development
+      type:
+        members:
+          - id: resuming
+            value: "resuming"
+            stability: development
+            brief: Being placed on a worker.
+          - id: running
+            value: "running"
+            stability: development
+            brief: Running on a worker.
+          - id: suspending
+            value: "suspending"
+            stability: development
+            brief: A snapshot is being written.
+          - id: suspended
+            value: "suspended"
+            stability: development
+            brief: Holds no worker; its latest snapshot is kept.
+          - id: crashed
+            value: "crashed"
+            stability: development
+            brief: Lost.
+          - id: deleting
+            value: "deleting"
+            stability: development
+            brief: Being removed.
+          - id: reverting
+            value: "reverting"
+            stability: development
+            brief: Being returned to its last durable snapshot.
+          - id: deleted
+            value: "deleted"
+            stability: development
+            brief: The record is gone.
+          - id: unknown
+            value: "unknown"
+            stability: development
+            brief: Not one of the above (the default).
+      brief: The state the Actor reached.
+    - id: hk.actor.operation.name
+      stability: development
+      type:
+        members:
+          - id: create
+            value: "create"
+            stability: development
+            brief: The record was made.
+          - id: resume
+            value: "resume"
+            stability: development
+            brief: The Actor was placed on a worker.
+          - id: suspend
+            value: "suspend"
+            stability: development
+            brief: A snapshot was written and the worker released.
+          - id: delete
+            value: "delete"
+            stability: development
+            brief: The record was removed.
+          - id: revert
+            value: "revert"
+            stability: development
+            brief: The Actor was returned to its last durable snapshot.
+          - id: unknown
+            value: "unknown"
+            stability: development
+            brief: No lifecycle operation ran, or one not listed (the default).
+      brief: The lifecycle operation that caused the record.
+
+  - id: registry.hk.placement
+    type: attribute_group
+    brief: Where an Actor ran.
+    attributes:
+    - id: hk.workerpool.namespace
+      stability: development
+      type: string
+      brief: The namespace of the worker pool.
+      examples: [team-a]
+    - id: hk.workerpool.name
+      stability: development
+      type: string
+      brief: The name of the worker pool.
+      examples: [gvisor-pool]
+    - id: hk.sandbox.class
+      stability: development
+      type:
+        members:
+          - id: gvisor
+            value: "gvisor"
+            stability: development
+            brief: A gVisor sandbox.
+          - id: microvm
+            value: "microvm"
+            stability: development
+            brief: A micro-VM sandbox.
+          - id: unknown
+            value: "unknown"
+            stability: development
+            brief: No class, or one not listed.
+      brief: The sandbox class the Actor ran in.
+
+  - id: registry.hk.stats
+    type: attribute_group
+    brief: One usage sample of an activation.
+    attributes:
+    - id: hk.stats.source
+      stability: development
+      type:
+        members:
+          - id: unspecified
+            value: "unspecified"
+            stability: development
+            brief: Not known.
+          - id: cgroup
+            value: "cgroup"
+            stability: development
+            brief: The sandbox cgroup, including the runtime's own load.
+          - id: guest_agent
+            value: "guest-agent"
+            stability: development
+            brief: The guest agent, counting only the workload's containers.
+      brief: Where the sample was measured.
+    - id: hk.stats.kind
+      stability: development
+      type:
+        members:
+          - id: periodic
+            value: "periodic"
+            stability: development
+            brief: Taken on the sampling timer.
+          - id: initial
+            value: "initial"
+            stability: development
+            brief: The first sample of an activation.
+          - id: final
+            value: "final"
+            stability: development
+            brief: The last sample of an activation.
+      brief: Which sample of the activation this is.
+    - id: hk.stats.memory.usage
+      stability: development
+      type: int
+      brief: Memory in use, in bytes.
+    - id: hk.stats.memory.peak
+      stability: development
+      type: int
+      brief: Peak memory as the source reports it, in bytes.
+    - id: hk.stats.memory.working_set
+      stability: development
+      type: int
+      brief: Working-set memory, in bytes.
+    - id: hk.stats.cpu.time
+      stability: development
+      type: double
+      brief: CPU time used since the activation began, in seconds.
+
+  - id: registry.hk.metrics
+    type: attribute_group
+    brief: Dimensions the platform metrics add beyond identity and placement.
+    attributes:
+    - id: hk.worker.state
+      stability: development
+      type:
+        members:
+          - id: idle
+            value: "idle"
+            stability: development
+            brief: No Actor slot in use.
+          - id: partial
+            value: "partial"
+            stability: development
+            brief: Some Actor slots in use.
+          - id: at_capacity
+            value: "at_capacity"
+            stability: development
+            brief: Every Actor slot in use.
+          - id: unschedulable
+            value: "unschedulable"
+            stability: development
+            brief: Not active, or without capacity.
+      brief: A worker's scheduling state by its Actor slots.
+    - id: hk.snapshot.kind
+      stability: development
+      type: string
+      brief: What a snapshot operation read or wrote (boot, golden, local, latest).
+      examples: [golden, latest]
+    - id: hk.snapshot.fidelity
+      stability: development
+      type: string
+      brief: The snapshot fidelity requested (memory, rootfs, volumes).
+      examples: [memory]
+    - id: hk.snapshot.phase
+      stability: development
+      type: string
+      brief: The phase of a restore or checkpoint a duration covers; `total` is the whole operation.
+      examples: [total, download]
+    - id: hk.snapshot.upload_overdue_band
+      stability: development
+      type: string
+      brief: How far past its deadline an undurable snapshot is.
+      examples: [lt_1m]
