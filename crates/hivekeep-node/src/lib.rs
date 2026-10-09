@@ -17,9 +17,16 @@
 //!   the control plane use).
 
 pub mod clock;
+pub mod cluster_view;
 pub mod context;
+pub mod credential_provider;
+pub mod csi;
 pub mod image;
 pub mod image_gc;
 pub mod objectstore;
 pub mod paths;
+pub mod sandbox_config;
 pub mod workqueue;
+
+#[cfg(test)]
+mod test_support;
