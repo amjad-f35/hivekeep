@@ -16,12 +16,19 @@
 //! so keys rotate without restarts. Everything here is offline: fetching
 //! keys over HTTP and talking to Kubernetes are the callers' business.
 
+pub mod actor_cert;
 pub mod ca;
+pub mod cred_bundle;
+pub mod cred_loader;
 pub mod csr;
 pub mod error;
 pub mod extension;
+pub mod host_cert;
+pub mod jwt;
 pub mod key;
 pub mod pem;
+pub mod pod_cert;
 pub mod state_file;
+pub mod trust_bundle;
 
 pub use error::{IdentityError, Result};
