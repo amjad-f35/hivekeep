@@ -1,0 +1,51 @@
+[package]
+name = "hivekeep-node"
+description = "Node-agent seams shared by the Hivekeep keeper, its pluggable backends and controllers: request contexts, clocks, work queues, node paths and the image, object-store and cluster-view traits."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Test helpers for crates built on this one: a fake CSI driver.
+testing = []
+
+[dependencies]
+hivekeep-proto = { workspace = true }
+# Pod identity credential and trust bundles for CSI controller mTLS.
+hivekeep-identity = { workspace = true }
+
+async-trait = { workspace = true }
+chrono = { workspace = true }
+libc = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+
+# CSI client: generated stubs, and the unix/TCP/TLS transports under them.
+http = { workspace = true }
+hyper-util = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+tokio-rustls = { workspace = true, features = ["ring"] }
+tokio-stream = { workspace = true }
+tonic-prost = { workspace = true }
+tower = { workspace = true }
+
+[build-dependencies]
+tonic-prost-build = { workspace = true }
+
+[dev-dependencies]
+rcgen = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber = { workspace = true }
