@@ -26,6 +26,7 @@ pub mod extension;
 pub mod host_cert;
 pub mod jwt;
 pub mod key;
+pub mod oidc;
 pub mod pem;
 pub mod pod_cert;
 pub mod state_file;
