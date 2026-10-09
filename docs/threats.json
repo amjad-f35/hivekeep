@@ -1,0 +1,218 @@
+[
+  {
+    "threat_id": "T-01",
+    "priority": "Critical",
+    "threat": "Code in an Actor escapes its sandbox to the worker pod or node.",
+    "mitigating_invariants": "Every Actor runs in its own gVisor sandbox or micro-VM; capabilities can only be changed within validated bounds; images are digest-pinned.",
+    "suggested_concrete_mitigations": "Track gVisor and Cloud Hypervisor security releases through SandboxConfig versions; run workers on dedicated, tainted nodes; keep `--cordon-system-infra-components` on.",
+    "notes": "The isolation strength comes from the chosen backend; the micro-VM class adds a hardware boundary."
+  },
+  {
+    "threat_id": "T-02",
+    "priority": "Critical",
+    "threat": "An Actor reaches another Actor on the same worker over the network.",
+    "mitigating_invariants": "Each Actor has its own network namespace; its egress only leaves through the tunnel to the egress gateway; the router reaches Actors only through the worker tunnel with mTLS.",
+    "suggested_concrete_mitigations": "Add an e2e check that two Actors on one worker cannot connect to each other's addresses.",
+    "notes": "Depends on the tunnel running in worker pods; see the README status section."
+  },
+  {
+    "threat_id": "T-03",
+    "priority": "Critical",
+    "threat": "An Actor reaches the keeper, the worker's Unix sockets or other node-local services.",
+    "mitigating_invariants": "The sandbox mount set is built only from the template's declared volumes and fixed system mounts; sockets that carry Actor credentials (keeper dial from the worker and tunnel) are mutually authenticated with pod certificates and same-node checks.",
+    "suggested_concrete_mitigations": "Periodically audit the sandbox mount set produced by the OCI spec builders in `hivekeep-imagecache::ocispec`.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-04",
+    "priority": "Critical",
+    "threat": "An Actor reads or overwrites another Actor's snapshots.",
+    "mitigating_invariants": "Snapshot objects sit under `hives/<hive>/actors/<uid>`; for GCS, node credentials are downscoped per Actor (read-write own prefix, read-only completed Tags) and issued only for Actors bound to the calling node.",
+    "suggested_concrete_mitigations": "Add per-Actor scoping for the S3 backend, which currently uses the plugin's ambient credentials.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-05",
+    "priority": "Critical",
+    "threat": "A tampered or corrupt snapshot is restored into an Actor.",
+    "mitigating_invariants": "Snapshot manifests are written last as commit markers; the sparse format reader validates its framing; restore needs a compatible runtime stamp.",
+    "suggested_concrete_mitigations": "Add content digests or a MAC over snapshot manifests and verify them on restore.",
+    "notes": "Integrity against a party with bucket write access currently relies on bucket access control."
+  },
+  {
+    "threat_id": "T-06",
+    "priority": "High",
+    "threat": "An Actor uses its egress to reach cloud metadata, the Kubernetes API or internal Services.",
+    "mitigating_invariants": "Egress is deny-by-default per Actor; UDP is always blocked; destinations must match a hostname-pattern rule and port; addresses match only `*`; DNS answers are filtered by the same policy.",
+    "suggested_concrete_mitigations": "Document a recommended deny list for `*` rules; alert on policies containing `*` with all ports.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-07",
+    "priority": "High",
+    "threat": "A credential the Actor's traffic needs leaks from the sandbox (for example, through prompt injection).",
+    "mitigating_invariants": "Injected credentials never enter the sandbox: the Actor sends a placeholder and the egress gateway replaces the header for matching rules only.",
+    "suggested_concrete_mitigations": "Prefer `actor_jwt` injection with short expirations over static secrets where the upstream accepts JWTs.",
+    "notes": "Credentials the template itself puts in env vars or files are not protected by this."
+  },
+  {
+    "threat_id": "T-08",
+    "priority": "High",
+    "threat": "An Actor obtains identity credentials for a different Actor.",
+    "mitigating_invariants": "Actor certificates and JWTs are minted only by the control plane: through Control for the egress gateway role, or through WorkerService for a keeper on the Actor's current node.",
+    "suggested_concrete_mitigations": "Add a regression e2e test that minting for an Actor on another node returns NOT_FOUND.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-09",
+    "priority": "High",
+    "threat": "An Actor that keeps getting resumed on new Workers uses the moves to spread laterally.",
+    "mitigating_invariants": "A restore starts a fresh sandbox; a restarted worker's previous Actors are crashed by epoch fencing; RUNNING commits are fenced on the placement epoch.",
+    "suggested_concrete_mitigations": "Rate-limit `RequestActorSuspend` from workers per Actor.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-10",
+    "priority": "Medium",
+    "threat": "A malicious image or workload exhausts node CPU, memory, disk or file descriptors.",
+    "mitigating_invariants": "CPU and memory limits are enforced per Actor through cgroup leaves; the scheduler books limits plus runtime overhead; the image cache evicts at high and low watermarks.",
+    "suggested_concrete_mitigations": "Add per-Actor disk quotas for durable-dir and rootfs layers; limit image size at pull time.",
+    "notes": "The glutton workload in `hivekeep-bench` exercises these limits."
+  },
+  {
+    "threat_id": "T-11",
+    "priority": "Medium",
+    "threat": "An Actor learns cluster topology from what it can see inside the sandbox.",
+    "mitigating_invariants": "The sandbox gets a generated `resolv.conf` and `hosts`; system-info volumes expose only the Actor's own name, Hive, UID and allow-listed trust bundles.",
+    "suggested_concrete_mitigations": "Review the guest-visible environment for each sandbox class before 1.0.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-12",
+    "priority": "Critical",
+    "threat": "A caller in one Hive reads or changes resources in another Hive.",
+    "mitigating_invariants": "Every Control RPC derives its authorization check from validated identifiers before running; Hive roles are evaluated against that Hive's policy only; the store rejects cross-hive references.",
+    "suggested_concrete_mitigations": "Keep the authz e2e suite (`crates/hivekeep-e2e/tests/authz/`) in the release gate.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-13",
+    "priority": "Critical",
+    "threat": "Anyone on the internal network calls `hivekeep-api` or the keeper without credentials.",
+    "mitigating_invariants": "`hivekeep-api` requires a trusted JWT or a client certificate on every call; the keeper accepts only the control plane's SPIFFE ID; NetworkPolicies limit who can reach system pods.",
+    "suggested_concrete_mitigations": "Refuse to start `hivekeep-api` without `--grpc-server-cred-bundle` unless an explicit development flag is set.",
+    "notes": "`--authz-allow-all`, `--memory-store` and the keeper's `--insecure-dev` are development-only."
+  },
+  {
+    "threat_id": "T-14",
+    "priority": "High",
+    "threat": "A template author abuses template fields to escalate (for example by adding capabilities, picking a storage location or mounting host paths).",
+    "mitigating_invariants": "Templates are validated field by field; capabilities are bounded; `storage_location` is honored only with the `PerTemplateSnapshotLocation` preview gate; volume sources are limited to durable-dir, image, system-info and CSI external volumes.",
+    "suggested_concrete_mitigations": "Restrict template creation to Hive editors (the default) and review editors regularly.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-15",
+    "priority": "High",
+    "threat": "A shared bootstrap owner grants every holder of its token global ownership.",
+    "mitigating_invariants": "Bootstrap owners must be configured explicitly; the installer warns when the shared `hivekeep-client` ServiceAccount is one.",
+    "suggested_concrete_mitigations": "Set `--api-authz-bootstrap-owners` to operator principals and manage the rest through access policies.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-16",
+    "priority": "Medium",
+    "threat": "A flood of requests or Actors exhausts the API, the router or cluster capacity.",
+    "mitigating_invariants": "Resume requests share one flight per Actor; the parking lot has a fixed capacity and sheds with 503; per-pool capacity bounds placement.",
+    "suggested_concrete_mitigations": "Add per-principal rate limits on Control and per-Hive Actor quotas.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-17",
+    "priority": "Medium",
+    "threat": "An egress policy grants more than intended through broad patterns.",
+    "mitigating_invariants": "Patterns are exact, `*.suffix` or `*`; the most specific match wins; rules that fail to compile are dropped (narrowing only); at most 256 rules.",
+    "suggested_concrete_mitigations": "Provide a dry-run evaluator in `hivectl` that shows which rule would decide a destination.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-18",
+    "priority": "High",
+    "threat": "A compromised keeper reads snapshots of Actors that are not on its node.",
+    "mitigating_invariants": "WorkerService answers NOT_FOUND for Workers and Actors on other nodes; the credential exchange binds issuance to the Actor's current node.",
+    "suggested_concrete_mitigations": "Shorten the lifetime of downscoped tokens and alert on exchange refusals.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-19",
+    "priority": "High",
+    "threat": "A compromised node escalates to the control plane or other nodes.",
+    "mitigating_invariants": "Keepers authenticate as their DaemonSet ServiceAccount; the control plane checks pod UID and node when dialing keepers; keeper roles are limited to node-scoped WorkerService calls and egress policy reads.",
+    "suggested_concrete_mitigations": "Bind the keeper ServiceAccount's Kubernetes RBAC to read-only, node-scoped access.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-20",
+    "priority": "High",
+    "threat": "A compromised gate component misuses its control-plane role.",
+    "mitigating_invariants": "The egress gateway's role is limited to reading Actors and egress policies and minting Actor credentials; the router's role is limited to listing and resuming Actors.",
+    "suggested_concrete_mitigations": "Run the egress gateway's ext_proc without Kubernetes access (the egress mode already needs none).",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-21",
+    "priority": "High",
+    "threat": "Signing keys (CA pools, JWT pool) are stolen from Secrets.",
+    "mitigating_invariants": "Pools live in Secrets in `hivekeep-system`; JWT keys rotate through add, activate and remove; leaf certificates are short-lived.",
+    "suggested_concrete_mitigations": "Store pools in an external KMS-backed signer; restrict Secret access in `hivekeep-system` to the components that mount them.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-22",
+    "priority": "Medium",
+    "threat": "Traffic between components is intercepted or spoofed.",
+    "mitigating_invariants": "Component traffic uses mTLS with pinned SPIFFE IDs or Service DNS names; the router verifies the worker's SPIFFE ID recorded on the assignment.",
+    "suggested_concrete_mitigations": "Enable dual-stack NetworkPolicies alongside mTLS.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-23",
+    "priority": "Medium",
+    "threat": "A stale egress policy keeps applying after it changes.",
+    "mitigating_invariants": "The gateway caches policies for at most `--egress-policy-cache-ttl` (10s by default); the tunnel's policy source is a short-lived, deduplicated cache.",
+    "suggested_concrete_mitigations": "Push policy invalidations from the control plane instead of relying on the TTL.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-24",
+    "priority": "Medium",
+    "threat": "Insiders with database or bucket access read Actor state.",
+    "mitigating_invariants": "Database roles are split between owner and read-write; bundled PostgreSQL uses certificate logins; snapshot paths are owner-scoped.",
+    "suggested_concrete_mitigations": "Encrypt snapshots with per-Actor keys before upload.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-25",
+    "priority": "Medium",
+    "threat": "Malicious activity goes unrecorded or unnoticed.",
+    "mitigating_invariants": "The control plane records Actor state changes, crashes and deletes with attribution; worker logs carry Actor, Hive and template labels; Prometheus metrics cover lifecycle errors and crashes.",
+    "suggested_concrete_mitigations": "Wire `hivekeep-telemetry` into the service binaries for OTLP export, and ship an alerting rule set.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-26",
+    "priority": "Medium",
+    "threat": "A detected malicious Actor cannot be contained quickly.",
+    "mitigating_invariants": "Deleting the EgressPolicy removes all egress; suspend, revert and delete work from any state; Workers can be drained.",
+    "suggested_concrete_mitigations": "Add a single \"quarantine\" verb that strips egress and suspends.",
+    "notes": ""
+  },
+  {
+    "threat_id": "T-27",
+    "priority": "Low",
+    "threat": "Production installs keep development placeholders (domain, OID arc, trust domain).",
+    "mitigating_invariants": "Every such value is listed in `PLACEHOLDERS.md`.",
+    "suggested_concrete_mitigations": "Fail the release image build when placeholder values remain.",
+    "notes": ""
+  }
+]
