@@ -3,6 +3,7 @@
 //! metrics endpoints, gRPC handler wrappers, and the node OTLP relay.
 
 pub mod attrs;
+pub mod boot;
 pub mod contextlogging;
 pub mod env;
 pub mod interceptors;
