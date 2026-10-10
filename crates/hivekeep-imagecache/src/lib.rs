@@ -29,6 +29,7 @@ pub mod backoff;
 pub mod confined;
 pub mod digest;
 pub mod error;
+pub mod gc;
 pub mod implicitdirs;
 pub mod keychain;
 pub mod layer;
@@ -38,13 +39,18 @@ pub mod mountinfo;
 pub mod reference;
 pub mod registry;
 pub mod removeall;
+pub mod retire;
 pub mod singleflight;
+pub mod sizes;
 pub mod spawn;
 pub mod spec;
+pub mod store;
 pub mod unpack;
 pub mod verify;
+pub mod tarutil;
 
 #[cfg(test)]
 pub(crate) mod testutil;
 
 pub use error::{Error, ErrorKind, Result};
+pub use store::{Image, Store, StoreOptions};
