@@ -1,0 +1,63 @@
+[package]
+name = "hivekeep-imagecache"
+description = "Hivekeep node-local OCI image layer cache: registry pulls, verified layer unpacking, overlay composition and eviction."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-proto = { workspace = true }
+# The keeper-side traits this crate plugs into (and the node paths,
+# contexts and credential providers they take).
+hivekeep-node = { workspace = true }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+flate2 = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+humantime = { workspace = true }
+libc = { workspace = true }
+parking_lot = { workspace = true }
+prometheus = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+sha2 = { workspace = true }
+tar = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true, features = ["io", "io-util", "rt"] }
+tonic = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+walkdir = { workspace = true }
+
+# Notable dependencies:
+# - directory handles that refuse to resolve outside their root (the
+#   confinement every unpack and rootfs write goes through).
+cap-std = { workspace = true }
+# - setting directory and symlink mtimes by path.
+filetime = { workspace = true }
+# - zstd-compressed image layers.
+zstd = { workspace = true }
+
+[dev-dependencies]
+http-body-util = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
