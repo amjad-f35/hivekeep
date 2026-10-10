@@ -26,10 +26,17 @@
 
 pub mod auth;
 pub mod backoff;
+pub mod confined;
 pub mod digest;
 pub mod error;
+pub mod layer;
 pub mod manifest;
 pub mod reference;
+pub mod registry;
+pub mod removeall;
 pub mod spawn;
+pub mod spec;
+pub mod unpack;
+pub mod verify;
 
 pub use error::{Error, ErrorKind, Result};
