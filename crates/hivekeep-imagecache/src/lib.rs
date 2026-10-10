@@ -29,14 +29,22 @@ pub mod backoff;
 pub mod confined;
 pub mod digest;
 pub mod error;
+pub mod implicitdirs;
+pub mod keychain;
 pub mod layer;
 pub mod manifest;
+pub mod metrics;
+pub mod mountinfo;
 pub mod reference;
 pub mod registry;
 pub mod removeall;
+pub mod singleflight;
 pub mod spawn;
 pub mod spec;
 pub mod unpack;
 pub mod verify;
+
+#[cfg(test)]
+pub(crate) mod testutil;
 
 pub use error::{Error, ErrorKind, Result};
