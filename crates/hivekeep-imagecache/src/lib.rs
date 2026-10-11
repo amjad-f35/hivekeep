@@ -31,6 +31,7 @@ pub mod digest;
 pub mod error;
 pub mod gc;
 pub mod implicitdirs;
+pub mod keeper;
 pub mod keychain;
 pub mod layer;
 pub mod manifest;
@@ -47,6 +48,11 @@ pub mod spec;
 pub mod store;
 pub mod unpack;
 pub mod verify;
+
+#[cfg(target_os = "linux")]
+pub mod bundle;
+
+pub mod ocispec;
 pub mod tarutil;
 
 #[cfg(test)]
