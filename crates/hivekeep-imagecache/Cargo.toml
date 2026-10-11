@@ -10,6 +10,10 @@ publish.workspace = true
 [lib]
 path = "src/lib.rs"
 
+[[bin]]
+name = "hivekeep-validate-image-cache"
+path = "src/bin/validate_image_cache.rs"
+
 [dependencies]
 hivekeep-telemetry = { workspace = true }
 hivekeep-proto = { workspace = true }
