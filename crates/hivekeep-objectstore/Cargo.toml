@@ -1,0 +1,82 @@
+[package]
+name = "hivekeep-objectstore"
+description = "Hivekeep object storage: GCS and S3 snapshot transfer, the object-store plugin protocol and its sidecar."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-identity = { workspace = true }
+hivekeep-proto = { workspace = true }
+# The keeper-side traits this crate plugs into (and the node paths,
+# contexts and credential providers they take).
+hivekeep-node = { workspace = true }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+form_urlencoded = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+humantime = { workspace = true }
+http = { workspace = true }
+hyper-util = { workspace = true }
+libc = { workspace = true }
+parking_lot = { workspace = true }
+percent-encoding = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+rustls-pemfile = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-rustls = { workspace = true, features = ["ring"] }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true, features = ["io", "io-util", "rt"] }
+tonic = { workspace = true, features = ["tls-ring"] }
+tonic-prost = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+x509-parser = { workspace = true }
+
+# Notable dependencies:
+# - HMAC for S3 SigV4 request signing.
+hmac = { workspace = true }
+# - S3 XML responses.
+quick-xml = { workspace = true, features = ["serialize"] }
+# - symlink-safe directory access below a root (what os.Root-style
+#   confinement needs).
+cap-std = { workspace = true }
+# - the zstd framing of snapshot objects.
+zstd = { workspace = true }
+# - grpc.health.v1 for the plugin socket readiness check.
+tonic-health = { workspace = true }
+# - RS256 assertions for Google service-account keys; the workspace's
+#   single JWT backend (aws-lc-rs).
+jsonwebtoken = { workspace = true }
+
+[build-dependencies]
+tonic-prost-build = { workspace = true }
+
+[dev-dependencies]
+rcgen = { workspace = true, features = ["x509-parser"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
