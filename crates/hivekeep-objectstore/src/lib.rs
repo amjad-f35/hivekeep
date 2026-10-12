@@ -12,11 +12,13 @@
 
 pub mod error;
 pub mod gcp;
+pub mod gcs;
 pub mod http;
 pub mod lru;
 pub mod pluginsocket;
 pub mod proto;
 pub mod retry;
+pub mod s3;
 pub mod semaphore;
 pub mod storage;
 pub mod tls;
