@@ -16,6 +16,7 @@ pub mod gcp;
 pub mod gcs;
 pub mod http;
 pub mod lru;
+pub mod plugin;
 pub mod pluginsocket;
 pub mod proto;
 pub mod retry;
