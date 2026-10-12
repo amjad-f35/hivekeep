@@ -10,6 +10,7 @@
 //!
 //! [`ObjectStore`]: hivekeep_node::objectstore::ObjectStore
 
+pub mod assetfetch;
 pub mod error;
 pub mod gcp;
 pub mod gcs;
@@ -21,4 +22,6 @@ pub mod retry;
 pub mod s3;
 pub mod semaphore;
 pub mod storage;
+pub mod store;
+pub mod testing;
 pub mod tls;
