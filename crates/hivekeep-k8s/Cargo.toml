@@ -1,0 +1,47 @@
+[package]
+name = "hivekeep-k8s"
+description = "Kubernetes API types and helpers for Hivekeep: the hivekeep.io/v1 CRDs, trust bundle and pod identity helpers, and a watch-backed cluster view for the keeper."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# An in-memory API server for tests of crates built on this one.
+testing = []
+
+[dependencies]
+hivekeep-core = { workspace = true }
+hivekeep-node = { workspace = true }
+hivekeep-identity = { workspace = true }
+
+async-trait = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+
+k8s-openapi = { workspace = true, features = ["schemars"] }
+kube = { workspace = true, features = ["derive", "runtime"] }
+schemars = { workspace = true }
+serde_yaml = { workspace = true }
+http-body-util = { workspace = true }
+http-body = { workspace = true }
+chrono = { workspace = true }
+rcgen = { workspace = true, features = ["x509-parser"] }
+x509-parser = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+rustls = { workspace = true }
