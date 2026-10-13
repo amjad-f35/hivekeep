@@ -9,14 +9,19 @@
 //! snapshot files and runtime assets on the node.
 
 pub mod actordirs;
+pub mod assets;
 pub mod atomicfile;
 pub use hivekeep_node::clock;
 pub use hivekeep_node::context;
 pub use hivekeep_node::credential_provider;
 pub mod filecache;
+pub mod filecachegc;
 pub mod keyed_lock;
+pub mod labels;
+pub mod objectstore;
 pub use hivekeep_node::paths;
 pub mod rand;
+pub mod snapshot_tracker;
 pub mod sparsefile;
 pub mod status;
 pub use hivekeep_node::workqueue;
