@@ -1,0 +1,79 @@
+[package]
+name = "hivekeep-keeper"
+description = "Hivekeep node agent: runs, snapshots and restores Actors on the workers of one node."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-proto = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-node = { workspace = true }
+# Production backends wired in the binary: the image layer cache, the
+# object-store plugin client, and the Kubernetes-backed cluster view.
+hivekeep-imagecache = { workspace = true }
+hivekeep-k8s = { workspace = true }
+hivekeep-objectstore = { workspace = true }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+flate2 = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true }
+humantime = { workspace = true }
+hyper-util = { workspace = true }
+kube = { workspace = true }
+libc = { workspace = true }
+parking_lot = { workspace = true }
+prometheus = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+rustls-pemfile = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tar = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true, features = ["rt"] }
+tonic = { workspace = true, features = ["tls-ring"] }
+# The kubelet device plugin API (generated in build.rs).
+tonic-prost = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+walkdir = { workspace = true }
+x509-parser = { workspace = true }
+
+# zstd-compressed sandbox release archives, and the
+# YAML kubelet credential provider config.
+zstd = { workspace = true }
+serde_yaml = { workspace = true }
+# .tar.bz2 sandbox release archives.
+bzip2 = { workspace = true }
+
+[build-dependencies]
+tonic-prost-build = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true }
+
+[dev-dependencies]
+hivekeep-node = { workspace = true, features = ["testing"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+
