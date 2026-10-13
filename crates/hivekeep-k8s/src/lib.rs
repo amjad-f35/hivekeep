@@ -4,6 +4,12 @@ pub mod api_errors;
 pub mod cert_api;
 pub mod client_rate_limit;
 pub mod cluster_trust_bundle;
+pub mod cluster_view;
+pub mod crd;
+pub mod csi_driver_configs;
 pub mod endpoint_resolver;
+#[cfg(any(test, feature = "testing"))]
+pub mod fake;
 pub mod informer;
 pub mod install_defaults;
+pub mod pod_identity;
