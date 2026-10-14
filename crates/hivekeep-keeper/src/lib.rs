@@ -37,7 +37,9 @@ pub mod peer_identity;
 pub mod rand;
 pub mod runtime_index;
 pub mod sandbox_versions;
+pub mod snapshot_cache;
 pub mod snapshot_tracker;
+pub mod snapshot_transfer;
 pub mod sparsefile;
 pub mod status;
 pub mod system_info;
@@ -46,3 +48,5 @@ pub mod volumes;
 pub mod worker_dialer;
 pub mod worker_jwt;
 pub use hivekeep_node::workqueue;
+#[cfg(test)]
+mod service_stubs;
