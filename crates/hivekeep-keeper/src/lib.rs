@@ -46,12 +46,14 @@ pub mod snapshot_report;
 pub mod snapshot_tracker;
 pub mod snapshot_transfer;
 pub mod sparsefile;
+pub mod stats_poller;
 pub mod status;
 pub mod system_info;
 pub mod trustbundle;
 pub mod volumes;
 pub mod worker_dialer;
 pub mod worker_jwt;
+pub mod worker_support;
 pub use hivekeep_node::workqueue;
 
 #[cfg(test)]
