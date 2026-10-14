@@ -25,6 +25,7 @@ pub mod filecache;
 pub mod filecachegc;
 pub mod http_endpoints;
 pub mod image_gc;
+pub mod keeper;
 pub mod keeper_metrics;
 pub mod keyed_lock;
 pub mod labels;
