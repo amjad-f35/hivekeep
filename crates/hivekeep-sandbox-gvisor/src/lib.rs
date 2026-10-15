@@ -12,9 +12,16 @@
 //! RPC handlers ([`lifecycle`], [`stats`], [`grpc`]).
 
 pub mod actor_path;
+pub mod attribution;
+pub mod cgroup_stats;
+pub mod checkpoint_record;
 pub mod error;
 pub mod flags;
+pub mod fs_checkpoint;
 pub mod mounts;
 pub mod node_path;
+pub mod oci;
+pub mod phaselog;
 pub mod request_checks;
+pub mod sizing;
 pub mod validation;
