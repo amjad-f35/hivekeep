@@ -13,6 +13,7 @@
 
 pub mod activation;
 pub mod actor_lock;
+pub mod actor_net;
 pub mod actor_path;
 pub mod attribution;
 pub mod cgroup;
@@ -21,12 +22,14 @@ pub mod checkpoint_record;
 pub mod ckpt_cgroup;
 pub mod cleanup;
 pub mod confined_dir;
+mod crash;
 pub mod crash_report;
 pub mod elf_soname;
 pub mod error;
 pub mod file_watch;
 pub mod flags;
 pub mod fs_checkpoint;
+pub mod grpc;
 pub mod hosted;
 mod hosting;
 pub mod keeper_dial;
@@ -45,8 +48,10 @@ pub mod runsc;
 pub mod runtimes_file;
 pub mod sandbox_process;
 pub mod service;
+pub mod shutdown;
 pub mod sizing;
 pub mod snapshot_cache;
+pub mod stats;
 #[cfg(test)]
 mod test_log;
 pub mod validation;
