@@ -11,17 +11,24 @@
 //! [`cgroup_stats`]); the service state ([`service`], [`hosted`]); and the
 //! RPC handlers ([`lifecycle`], [`stats`], [`grpc`]).
 
+pub mod activation;
+pub mod actor_lock;
 pub mod actor_path;
 pub mod attribution;
+pub mod cgroup;
 pub mod cgroup_stats;
 pub mod checkpoint_record;
 pub mod error;
 pub mod flags;
 pub mod fs_checkpoint;
+pub mod memory_watch;
 pub mod mounts;
 pub mod node_path;
 pub mod oci;
 pub mod phaselog;
+pub mod ports;
 pub mod request_checks;
 pub mod sizing;
+pub mod snapshot_cache;
 pub mod validation;
+pub mod wakeup_probe;
