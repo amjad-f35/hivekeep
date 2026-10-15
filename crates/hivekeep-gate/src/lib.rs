@@ -13,6 +13,8 @@ pub mod k8s_channel;
 pub mod k8s_resolver;
 pub mod netns;
 pub mod portforward;
+
+pub mod router;
 pub mod tunnel;
 pub mod singleflight;
 
