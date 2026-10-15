@@ -11,6 +11,10 @@ build = "build.rs"
 [lib]
 path = "src/lib.rs"
 
+[[bin]]
+name = "hivekeep-gate"
+path = "src/main.rs"
+
 [dependencies]
 hivekeep-telemetry = { workspace = true }
 hivekeep-proto = { workspace = true }
