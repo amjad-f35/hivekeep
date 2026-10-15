@@ -16,6 +16,8 @@ pub mod portforward;
 
 pub mod router;
 pub mod tunnel;
+
+pub mod sds_mint;
 pub mod singleflight;
 
 #[cfg(test)]
