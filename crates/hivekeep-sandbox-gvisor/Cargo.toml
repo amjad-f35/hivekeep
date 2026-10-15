@@ -1,0 +1,46 @@
+[package]
+name = "hivekeep-sandbox-gvisor"
+description = "Hivekeep sandbox worker that runs, checkpoints and restores Actors in gVisor (runsc)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-proto = { workspace = true }
+# The tunnel and network-namespace primitives the worker serves Actors with.
+hivekeep-gate = { workspace = true }
+ipnet = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+libc = { workspace = true }
+parking_lot = { workspace = true }
+prost = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+humantime = { workspace = true }
+hyper-util = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }
+tokio-rustls = { workspace = true }
+tower = { workspace = true }
+x509-parser = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
