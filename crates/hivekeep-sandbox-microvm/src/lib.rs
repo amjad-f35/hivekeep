@@ -21,9 +21,14 @@
 pub use hivekeep_core::cpu_features;
 /// Runtime compatibility matching, shared with the control plane.
 pub use hivekeep_core::hardware;
+
+pub mod activation;
+pub mod actor_cgroup;
 pub mod cdi;
+pub mod child;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::crash_report;
+pub mod etc_files;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::file_watch;
 pub mod guest_spec;
@@ -37,4 +42,7 @@ pub use hivekeep_sandbox_gvisor::register;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::runtimes_file;
 pub mod sizing;
+pub mod tarball;
+pub mod ttrpc;
+pub mod usage;
 pub mod wakeup_probe;
