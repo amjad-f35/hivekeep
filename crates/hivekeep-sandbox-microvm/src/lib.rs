@@ -24,11 +24,14 @@ pub use hivekeep_core::hardware;
 
 pub mod activation;
 pub mod actor_cgroup;
+pub mod actor_log;
 pub mod actor_path;
 pub mod agent_stats;
 pub mod agentpb;
+pub mod boot;
 pub mod cdi;
 pub mod ch;
+pub mod checkpoint;
 pub mod child;
 pub mod config;
 /// Shared with the gVisor worker.
@@ -50,6 +53,7 @@ pub mod pid1;
 pub mod pidfd;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::register;
+pub mod restore;
 pub mod rootfs_upper;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::runtimes_file;
@@ -57,6 +61,7 @@ pub mod service;
 pub mod sizing;
 pub mod snapshot_config;
 pub mod snapshot_files;
+pub mod stats;
 pub mod tarball;
 pub mod ttrpc;
 pub mod usage;
