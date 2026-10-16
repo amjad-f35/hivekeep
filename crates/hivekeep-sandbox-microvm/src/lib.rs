@@ -28,6 +28,7 @@ pub mod actor_path;
 pub mod agent_stats;
 pub mod agentpb;
 pub mod cdi;
+pub mod ch;
 pub mod child;
 pub mod config;
 /// Shared with the gVisor worker.
@@ -38,6 +39,7 @@ pub mod fidelity;
 pub use hivekeep_sandbox_gvisor::file_watch;
 pub mod guest_spec;
 pub mod guestpb;
+pub mod kata;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::keeper_dial;
 pub mod original_dst;
@@ -49,6 +51,7 @@ pub use hivekeep_sandbox_gvisor::register;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::runtimes_file;
 pub mod sizing;
+pub mod snapshot_files;
 pub mod tarball;
 pub mod ttrpc;
 pub mod usage;
