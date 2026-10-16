@@ -1,0 +1,73 @@
+[package]
+name = "hivekeep-api"
+description = "hivekeep-api: the Hivekeep control plane serving the Control and WorkerService APIs."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "hivekeep_api"
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-identity = { workspace = true }
+# CSI controller drivers for external volumes, found through their
+# CSIDriverConfig resources.
+hivekeep-k8s = { workspace = true }
+hivekeep-node = { workspace = true }
+hivekeep-objectstore = { workspace = true }
+hivekeep-proto = { workspace = true }
+hivekeep-store = { workspace = true }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+humantime = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+parking_lot = { workspace = true }
+prometheus = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
+x509-parser = { workspace = true, features = ["verify-aws"] }
+rustls-pemfile = { workspace = true }
+# TLS for the gRPC server and keeper dials, on ring like the rest of the
+# workspace's TLS; the ring provider is installed at startup. (aws-lc-rs is
+# still linked through hivekeep-identity and reqwest, so the provider is
+# never left to rustls to pick.)
+tonic = { workspace = true, features = ["tls-ring"] }
+rustls = { workspace = true, features = ["ring"] }
+tokio-rustls = { workspace = true, features = ["ring"] }
+reqwest = { workspace = true }
+webpki = { workspace = true }
+
+http-body-util = { workspace = true }
+serde_yaml = { workspace = true }
+# Kubernetes access for finding node keepers.
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+
+[dev-dependencies]
+hivekeep-k8s = { workspace = true, features = ["testing"] }
+hivekeep-node = { workspace = true, features = ["testing"] }
+tempfile = { workspace = true }
+rcgen = { workspace = true }
