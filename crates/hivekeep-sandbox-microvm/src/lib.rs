@@ -33,10 +33,12 @@ pub mod child;
 pub mod config;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::crash_report;
+pub mod envelope;
 pub mod etc_files;
 pub mod fidelity;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::file_watch;
+pub mod guest_net;
 pub mod guest_spec;
 pub mod guestpb;
 pub mod kata;
@@ -48,11 +50,18 @@ pub mod pid1;
 pub mod pidfd;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::register;
+pub mod rootfs_upper;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::runtimes_file;
+pub mod service;
 pub mod sizing;
+pub mod snapshot_config;
 pub mod snapshot_files;
 pub mod tarball;
 pub mod ttrpc;
 pub mod usage;
+pub mod vm_boot;
+pub mod volumes;
 pub mod wakeup_probe;
+
+pub use service::{ServiceConfig, WorkerService};
