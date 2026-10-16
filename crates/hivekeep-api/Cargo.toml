@@ -11,6 +11,10 @@ publish.workspace = true
 name = "hivekeep_api"
 path = "src/lib.rs"
 
+[[bin]]
+name = "hivekeep-api"
+path = "src/main.rs"
+
 [dependencies]
 hivekeep-telemetry = { workspace = true }
 hivekeep-core = { workspace = true }
