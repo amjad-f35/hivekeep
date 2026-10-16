@@ -24,17 +24,24 @@ pub use hivekeep_core::hardware;
 
 pub mod activation;
 pub mod actor_cgroup;
+pub mod actor_path;
+pub mod agent_stats;
+pub mod agentpb;
 pub mod cdi;
 pub mod child;
+pub mod config;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::crash_report;
 pub mod etc_files;
+pub mod fidelity;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::file_watch;
 pub mod guest_spec;
+pub mod guestpb;
 /// Shared with the gVisor worker.
 pub use hivekeep_sandbox_gvisor::keeper_dial;
 pub mod original_dst;
+pub mod phases;
 pub mod pid1;
 pub mod pidfd;
 /// Shared with the gVisor worker.
