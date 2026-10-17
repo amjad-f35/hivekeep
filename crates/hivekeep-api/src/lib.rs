@@ -33,7 +33,9 @@ pub mod workflow;
 pub mod workload_spec;
 
 pub(crate) use control::invalid as control_invalid;
+pub mod assignment_reconciler;
 pub mod authn;
 pub mod kube_dialer;
+pub mod server;
 pub mod template_reconciler;
 pub mod workqueue;
