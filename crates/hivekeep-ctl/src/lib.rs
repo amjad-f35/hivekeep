@@ -13,6 +13,7 @@
 //! ([`app`]).
 
 pub mod age;
+pub mod app;
 pub mod ca_pool;
 pub mod cli;
 pub mod client;
