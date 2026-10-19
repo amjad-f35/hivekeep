@@ -1,0 +1,46 @@
+[package]
+name = "hivekeep-ctl"
+description = "hivectl: the operator and developer command-line client for Hivekeep."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "hivekeep_ctl"
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-proto = { workspace = true }
+
+anyhow = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tonic = { workspace = true, features = ["tls-ring", "tls-native-roots"] }
+time = { workspace = true }
+uuid = { workspace = true }
+
+# Protojson for the generated messages, YAML manifests, and key material
+# for the admin pools.
+prost-reflect = { workspace = true }
+serde_yaml_ng = { workspace = true }
+rcgen = { workspace = true }
+rsa = { workspace = true }
+rand_core = { workspace = true, features = ["getrandom"] }
+tokio-rustls = { workspace = true }
+
+[dev-dependencies]
+x509-parser = { workspace = true }
+tempfile = { workspace = true }
+tokio-stream = { workspace = true }
