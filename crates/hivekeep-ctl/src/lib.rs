@@ -13,10 +13,17 @@
 //! ([`app`]).
 
 pub mod age;
+pub mod cli;
+pub mod client;
+pub mod connection;
+pub mod context;
 pub mod error;
+pub mod gate;
 pub mod install;
 pub mod io;
+pub mod kubectl;
 pub mod label_selector;
+pub mod log_filter;
 pub mod manifest;
 pub mod output;
 pub mod print;
