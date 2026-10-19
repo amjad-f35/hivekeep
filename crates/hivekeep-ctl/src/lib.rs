@@ -12,10 +12,17 @@
 //! command line ([`cli`]), the commands ([`commands`]) and dispatch
 //! ([`app`]).
 
+pub mod age;
 pub mod error;
 pub mod install;
 pub mod io;
+pub mod label_selector;
+pub mod manifest;
+pub mod output;
+pub mod print;
 pub mod protojson;
+pub mod quantity;
+pub mod refs;
 pub mod table;
 pub mod verbosity;
 pub mod yaml;
