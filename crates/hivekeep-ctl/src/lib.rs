@@ -13,14 +13,17 @@
 //! ([`app`]).
 
 pub mod age;
+pub mod ca_pool;
 pub mod cli;
 pub mod client;
+pub mod commands;
 pub mod connection;
 pub mod context;
 pub mod error;
 pub mod gate;
 pub mod install;
 pub mod io;
+pub mod jwt_pool;
 pub mod kubectl;
 pub mod label_selector;
 pub mod log_filter;
@@ -30,6 +33,7 @@ pub mod print;
 pub mod protojson;
 pub mod quantity;
 pub mod refs;
+pub mod secret;
 pub mod table;
 pub mod verbosity;
 pub mod yaml;
