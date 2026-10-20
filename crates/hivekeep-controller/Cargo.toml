@@ -1,0 +1,49 @@
+[package]
+name = "hivekeep-controller"
+description = "Hivekeep cluster controller: worker pools, sandbox config protection, network policies, egress trust bundles, and the worker registry sync."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-identity = { workspace = true }
+hivekeep-proto = { workspace = true }
+hivekeep-k8s = { workspace = true }
+
+anyhow = { workspace = true }
+bytes = { workspace = true }
+http-body-util = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+parking_lot = { workspace = true }
+prometheus = { workspace = true }
+rustls = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true, features = ["tls-ring"] }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+k8s-openapi = { workspace = true }
+kube = { workspace = true, features = ["runtime"] }
+
+[dev-dependencies]
+hivekeep-k8s = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["test-util"] }
