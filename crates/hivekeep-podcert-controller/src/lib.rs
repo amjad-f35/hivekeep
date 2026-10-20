@@ -14,10 +14,14 @@
 //! publishes the signer's roots as a ClusterTrustBundle. Replicas split the
 //! work with lease-based rendezvous hashing ([`rendezvous`]).
 
+pub mod app;
 pub mod cli;
 pub mod error;
 pub mod pod_certificate;
+pub mod pod_identity_signer;
+pub mod postgres_signer;
 pub mod rendezvous;
+pub mod service_dns_signer;
 pub mod signer;
 
 #[cfg(test)]
