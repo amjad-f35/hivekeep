@@ -4,5 +4,8 @@
 //! registry.
 
 pub mod api_client;
+pub mod app;
+pub mod cli;
 pub mod controllers;
 pub mod http_server;
+pub mod workersync;
