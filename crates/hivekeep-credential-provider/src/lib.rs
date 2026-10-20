@@ -15,6 +15,10 @@
 
 pub mod health;
 pub mod http;
+pub mod metrics;
 pub mod nsauthz;
+pub mod pb;
+pub mod provider;
 pub mod secret_uri;
+pub mod statusz;
 pub mod tls;
