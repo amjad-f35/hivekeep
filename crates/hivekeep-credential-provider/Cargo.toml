@@ -1,0 +1,59 @@
+[package]
+name = "hivekeep-credential-provider"
+description = "Credential provider plugin resolving hk-secret:// URIs to Kubernetes Secret values for the egress gateway."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "hivekeep-credential-provider"
+path = "src/main.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-identity = { workspace = true }
+hivekeep-k8s = { workspace = true }
+
+anyhow = { workspace = true }
+bytes = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+prost = { workspace = true }
+prometheus = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-rustls = { workspace = true, features = ["ring"] }
+tokio-stream = { workspace = true }
+tonic = { workspace = true, features = ["tls-connect-info"] }
+tonic-prost = { workspace = true }
+tonic-reflection = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+humantime = { workspace = true }
+x509-parser = { workspace = true }
+
+k8s-openapi = { workspace = true }
+kube = { workspace = true, features = ["runtime"] }
+
+[build-dependencies]
+tonic-prost-build = { workspace = true }
+
+[dev-dependencies]
+hivekeep-k8s = { workspace = true, features = ["testing"] }
+rcgen = { workspace = true }
+tempfile = { workspace = true }
