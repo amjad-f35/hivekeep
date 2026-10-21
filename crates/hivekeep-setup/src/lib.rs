@@ -12,6 +12,7 @@ pub mod config;
 pub mod gcp;
 pub mod images;
 pub mod installdefaults;
+pub mod kube;
 pub mod kustomize;
 pub mod log;
 pub mod render;
