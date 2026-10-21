@@ -7,7 +7,10 @@
 //! ([`demos`]) built on them, the GCP project scaffolding ([`gcp`]), and the
 //! command tree ([`cli`]).
 
+pub mod builder;
+pub mod config;
 pub mod gcp;
+pub mod images;
 pub mod installdefaults;
 pub mod kustomize;
 pub mod log;
