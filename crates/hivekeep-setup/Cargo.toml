@@ -1,0 +1,53 @@
+[package]
+name = "hivekeep-setup"
+description = "Cluster installer for Hivekeep: deploys the control plane, its secrets and config, the bundled demos, and the GCP project scaffolding they run on."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-identity = { workspace = true }
+hivekeep-proto = { workspace = true }
+hivekeep-store = { workspace = true }
+
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, features = ["string"] }
+futures = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true }
+parking_lot = { workspace = true }
+prost = { workspace = true }
+prost-reflect = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+url = { workspace = true }
+walkdir = { workspace = true }
+
+k8s-openapi = { workspace = true }
+kube = { workspace = true, features = ["ws"] }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+x509-parser = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
