@@ -7,3 +7,4 @@
 //!   from libtest JSON event streams and cargo-nextest JUnit reports.
 
 pub mod apitool;
+pub mod junittool;
