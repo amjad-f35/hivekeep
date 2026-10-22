@@ -1,0 +1,63 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../keeper.yaml
+
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: keeper
+        namespace: hivekeep-system
+      spec:
+        template:
+          spec:
+            containers:
+            - name: keeper
+              args:
+              - --localhost-registry-replacement=kind-registry:5000
+              - --grpc-server-cred-bundle=/run/podidentity.podcert.hivekeep.io/credential-bundle.pem
+              - --client-ca-certs=/run/podidentity.podcert.hivekeep.io/trust-bundle.pem
+              # Kind clusters are dev/CI: run keeper at debug so e2e suites can
+              # assert on per-item log lines. Production installs default to info.
+              - --log-level=debug
+              # The OTLP endpoint comes from the hivekeep-otel-config ConfigMap the
+              # keeper DaemonSet consumes via envFrom; the kind copy lives at
+              # ../hivekeep-otel-config.yaml and is applied by the parent overlay or
+              # by hivekeep-setup for a targeted redeploy.
+              # kind nodes ship no credential provider plugin (the args above
+              # leave the --image-credential-provider-* flags unset), so drop
+              # the base manifest's host mounts instead of fabricating empty
+              # ones on the node. volumeMounts merges on mountPath; volumes
+              # merges on name.
+              volumeMounts:
+              - mountPath: /run/image-credential-provider/bin
+                $patch: delete
+              - mountPath: /run/image-credential-provider/config.yaml
+                $patch: delete
+            volumes:
+            - name: image-credential-provider-bin
+              $patch: delete
+            - name: image-credential-provider-config
+              $patch: delete
+            # The object-store plugin transfers keeper's external snapshots and
+            # fetches its private sandbox assets (the micro-VM assets
+            # stage-to-rustfs.sh uploads), so it points at rustfs.
+            initContainers:
+            - name: objectstore-plugin
+              env:
+              - name: HK_STORAGE_BACKEND
+                value: s3
+              - name: AWS_REGION
+                value: us-east-1
+              - name: AWS_ENDPOINT_URL
+                value: http://rustfs.hivekeep-system.svc:9000
+              - name: AWS_S3_USE_PATH_STYLE
+                value: "true"
+              # TODO: use a secret / identity management
+              - name: AWS_ACCESS_KEY_ID
+                value: rustfsadmin
+              - name: AWS_SECRET_ACCESS_KEY
+                value: rustfsadmin

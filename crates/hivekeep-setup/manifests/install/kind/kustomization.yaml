@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# hivekeep-otel-config.yaml replaces the base ../hivekeep-otel-config.yaml (same ConfigMap
+# name) so every component's `envFrom` resolves to the in-cluster collector
+# instead of the GKE one. It is listed here rather than in ./keeper or
+# ./hivekeep-api because those overlays are also built standalone; listing it
+# in the bundle and an overlay would be a duplicate resource. hivekeep-setup applies
+# the ConfigMap directly for the single-component redeploys.
+#
+# pod-certificate-controller.yaml is deliberately absent, as in ../base: the
+# installer (hivekeep-setup) applies and deletes it on
+# its own, and re-applying the base file from this bundle would revert the
+# WORKERS_PER_SIGNER override.
+resources:
+  - ./hivekeep-api
+  - ../hivekeep-idp-server.yaml
+  - ../hivekeep-controller.yaml
+  - ./keeper
+  - ../gate-router.yaml
+  - ../hivekeep-system-networkpolicies.yaml
+  - hivekeep-otel-config.yaml
+  - rustfs.yaml
+  - ./otel-collector.yaml
+  - ./prometheus.yaml

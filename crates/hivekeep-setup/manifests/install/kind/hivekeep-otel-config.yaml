@@ -1,0 +1,35 @@
+# Kind replacement for manifests/install/hivekeep-otel-config.yaml: same name, so
+# the overlay lists this file instead of the base one. Points the control plane
+# at the in-cluster collector deployed by kind/otel-collector.yaml.
+#
+# OTEL_METRIC_EXPORT_INTERVAL shortens the OTel SDK's 60s metric export tick to
+# 10s. A component is invisible to the collector until its first tick, and the
+# metrics e2e suite asserts against the collector's scrape on a bounded deadline,
+# so the default leaves too little headroom on a loaded runner.
+#
+# OTEL_METRIC_EXPORT_TIMEOUT bounds a tick that fails rather than one that
+# succeeds, and its 30s default swallows three shortened intervals: a collector
+# blip or slow DNS drops a component back to roughly one attempt per 30s, undoing
+# the shorter interval. Matching it to the interval keeps every tick an attempt.
+#
+# On hivekeep-controller both do double duty: the controller also propagates them to
+# the worker pods it creates, which have no other way to receive them.
+# Kind only; production keeps the SDK defaults.
+#
+# OTEL_LOGS_EXPORTER=otlp sends the actor events and hivekeep-api's lifecycle records
+# over OTLP instead of stdout; kind adds console to keep them in kubectl logs
+# too. serverboot defaults it to none, so the base ConfigMap leaves it unset and
+# every other environment keeps them on stdout. HK_WORKER_OTEL_LOGS_EXPORTER is
+# the same setting for the worker pods and their usage samples, which
+# hivekeep-controller sets from it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hivekeep-otel-config
+  namespace: hivekeep-system
+data:
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://opentelemetry-collector.otel-system.svc:4317
+  OTEL_METRIC_EXPORT_INTERVAL: "10000"
+  OTEL_METRIC_EXPORT_TIMEOUT: "10000"
+  OTEL_LOGS_EXPORTER: otlp,console
+  HK_WORKER_OTEL_LOGS_EXPORTER: otlp,console
