@@ -1,0 +1,1352 @@
+[
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.AccessPolicy.bindings",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.AccessPolicy.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Actor.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorAssignment.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorAssignment.actor_uid",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorAssignment.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorAssignment.resources",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorCrash.crash_time",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorCrash.message",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorJwtSource.audiences",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorJwtSource.expiration_seconds",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorMetadataDataSource.items",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorMetadataItem.field",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorMetadataItem.path",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorSandboxRuntime.sandbox_class",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorSandboxRuntime.version",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.containers",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.resources",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.snapshot_config",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.status",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.volumes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplate.worker_selector",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ActorTemplateStatus.golden_snapshot_status",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.AttributeEntry.key",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.AttributeEntry.value",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Binding.members",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Binding.role",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Capabilities.add",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Capabilities.drop",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.args",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.command",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.env",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.resources",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.security_context",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.volume_mounts",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Container.wakeup_probe",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorEgressPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorEgressPolicyRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorEgressPolicyRequest.egress_policy",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorTemplateRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateActorTemplateRequest.actor_template",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateGlobalAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateGlobalAccessPolicyRequest.access_policy",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateHiveAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateHiveAccessPolicyRequest.access_policy",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateHiveAccessPolicyRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateHiveRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateHiveRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateTagRequest.tag",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateWorkerRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.CreateWorkerRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorEgressPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorEgressPolicyRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorEgressPolicyRequest.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorEgressPolicyRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorTemplateRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorTemplateRequest.actor_template",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteActorTemplateRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveAccessPolicyRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveAccessPolicyRequest.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveAccessPolicyRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteHiveRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteTagRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteTagRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteTagRequest.tag",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteWorkerRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteWorkerRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DeleteWorkerRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DrainWorkerRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DrainWorkerRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DrainWorkerResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.DrainWorkerResponse.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EgressPolicy.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EgressPolicyTemplate.rules",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EgressRule.http",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EgressRule.https",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EgressRule.tls_passthrough",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EnvVar.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.EnvVar.value",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ExternalVolumeSource.template",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ExternalVolumeTemplate.capacity_bytes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ExternalVolumeTemplate.storage_class_name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ExternalVolumes.volumes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorEgressPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorEgressPolicyRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorEgressPolicyRequest.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorTemplateRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetActorTemplateRequest.actor_template",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetGlobalAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetGlobalAccessPolicyRequest.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetHiveAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetHiveAccessPolicyRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetHiveAccessPolicyRequest.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetHiveRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetHiveRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetTagRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetTagRequest.tag",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetWorkerRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GetWorkerRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GoldenSnapshotConfig.mode",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GoldenSnapshotStatus.error_message",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GoldenSnapshotStatus.golden_tag",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.GoldenSnapshotStatus.snapshot_time",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Hive.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpGetAction.path",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpGetAction.port",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpRule.effects",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpRule.hostnames",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpRule.ports",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpRuleEffects.replace_headers",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpsRule.effects",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpsRule.hostnames",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.HttpsRule.ports",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ImageVolumeSource.reference",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorTemplatesRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorTemplatesRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorTemplatesRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorTemplatesResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorTemplatesResponse.actor_templates",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorTemplatesResponse.next_page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorsRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorsRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorsResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorsResponse.actors",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListActorsResponse.next_page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListHivesRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListHivesRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListHivesResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListHivesResponse.hives",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListHivesResponse.next_page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListOptions.page_size",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListOptions.page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListTagsRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListTagsRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListTagsRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListTagsResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListTagsResponse.next_page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListTagsResponse.tags",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkerActorAssignmentsRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkerActorAssignmentsRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkerActorAssignmentsRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkerActorAssignmentsResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkerActorAssignmentsResponse.actor_assignments",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkerActorAssignmentsResponse.next_page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkersRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkersRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkersResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkersResponse.next_page_token",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ListWorkersResponse.workers",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerAvailableRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerAvailableRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerAvailableResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerAvailableResponse.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerUnavailableRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerUnavailableRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerUnavailableResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MarkWorkerUnavailableResponse.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorCertificateRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorCertificateRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorCertificateRequest.actor_uid",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorCertificateRequest.certificate_signing_request",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorCertificateResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorCertificateResponse.actor_certificates",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtRequest.audiences",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtRequest.expiration_seconds",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtResponse.actor_jwt",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.MintActorJwtResponse.expire_time",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ObjectRef.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Ports.all",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Ports.numbers",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ResourceRequirements.limits",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ResumeActorRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ResumeActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ResumeActorResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.ResumeActorResponse.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.RevertActorRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.RevertActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.RevertActorResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.RevertActorResponse.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.RuntimeOverhead.memory_bytes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.RuntimeOverhead.memory_bytes_per_gib",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SecurityContext.capabilities",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Selector.match_labels",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SnapshotConfig.golden_snapshot_config",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SnapshotStorage.object",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SnapshotStorage.state",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SuspendActorRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SuspendActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SuspendActorRequest.options",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SuspendActorResponse",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SuspendActorResponse.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SuspendOptions.mode",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SystemInfoDataSource.actor_metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SystemInfoDataSource.trust_bundle",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.SystemInfoVolumeSource.data_sources",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Tag.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Tag.status",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.TagStatus.actor_template_uid",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.TagStatus.snapshot",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.TlsPassthroughRule.hostnames",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.TlsPassthroughRule.ports",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.TrustBundleDataSource.names",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.TrustBundleDataSource.path",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateActorEgressPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateActorEgressPolicyRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateActorEgressPolicyRequest.egress_policy",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateActorRequest.actor",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateGlobalAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateGlobalAccessPolicyRequest.access_policy",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateHiveAccessPolicyRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateHiveAccessPolicyRequest.access_policy",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateHiveAccessPolicyRequest.hive",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateTagRequest.tag",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateWorkerRequest",
+    "message": "message has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.UpdateWorkerRequest.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.VersionedSandboxCompat.attributes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.VersionedSandboxCompat.schema_version",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Volume.durable_dir",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Volume.external",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Volume.image",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Volume.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Volume.system_info",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.VolumeMount.mount_path",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.VolumeMount.name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WakeupProbe.http_get",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WakeupProbe.timeout_seconds",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.labels",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.metadata",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.node_name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.status",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.worker_namespace",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.worker_pod",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.worker_pod_uid",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.worker_pool",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.Worker.worker_spiffe_id",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.node_name",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker_namespace",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker_pod",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker_pod_ips",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker_pod_uid",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker_pool",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerAssignment.worker_spiffe_id",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerResources.cpu_millicores",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerResources.memory_bytes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerSandboxClass.default_runtime",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerSandboxClass.restorable_runtimes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerSandboxClass.sandbox_class",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerSandboxRuntime.actor_overhead",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerSandboxRuntime.version",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerStatus.allocated",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerStatus.capacity",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerStatus.ips",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerStatus.sandbox_classes",
+    "message": "field has no doc comment"
+  },
+  {
+    "rule": "documented",
+    "subject": "hivekeep.api.v1.WorkerStatus.state",
+    "message": "field has no doc comment"
+  }
+]

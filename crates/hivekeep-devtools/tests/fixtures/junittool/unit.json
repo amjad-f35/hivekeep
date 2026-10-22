@@ -1,0 +1,10 @@
+     Running unittests src/lib.rs (target/debug/deps/hivekeep_devtools-0123456789abcdef)
+{ "type": "suite", "event": "started", "test_count": 3 }
+{ "type": "test", "event": "started", "name": "junittool::fixture::passes" }
+{ "type": "test", "name": "junittool::fixture::passes", "event": "ok", "exec_time": 0.001 }
+{ "type": "test", "event": "started", "name": "junittool::fixture::needs_cluster" }
+{ "type": "test", "name": "junittool::fixture::needs_cluster", "event": "ignored", "message": "needs a cluster" }
+{ "type": "test", "event": "started", "name": "junittool::fixture::fails" }
+{ "type": "test", "name": "junittool::fixture::fails", "event": "failed", "exec_time": 0.012, "stdout": "connecting\nthread 'junittool::fixture::fails' panicked at crates/hivekeep-devtools/src/lib.rs:1:1:\nassertion `left == right` failed\n  left: 1\n right: 2\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n" }
+{ "type": "suite", "event": "failed", "passed": 1, "failed": 1, "ignored": 1, "measured": 0, "filtered_out": 0, "exec_time": 0.02 }
+error: test failed, to rerun pass `-p hivekeep-devtools --lib`

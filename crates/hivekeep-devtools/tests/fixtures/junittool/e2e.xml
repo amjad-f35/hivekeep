@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="nextest-run" tests="2" failures="1" errors="0" uuid="00000000-0000-0000-0000-000000000000" timestamp="2026-01-01T00:00:00.000+00:00" time="1.500">
+    <testsuite name="hivekeep-e2e::suite" tests="2" disabled="0" errors="0" failures="1">
+        <testcase name="actor::starts" classname="hivekeep-e2e::suite" timestamp="2026-01-01T00:00:00.000+00:00" time="0.500">
+        </testcase>
+        <testcase name="actor::resumes_from_snapshot" classname="hivekeep-e2e::suite" timestamp="2026-01-01T00:00:00.500+00:00" time="1.000">
+            <failure type="test failure">thread &apos;actor::resumes_from_snapshot&apos; panicked at crates/hivekeep-devtools/src/lib.rs:1:1:
+snapshot was not restored</failure>
+            <system-out>waiting for worker
+</system-out>
+            <system-err>thread &apos;actor::resumes_from_snapshot&apos; panicked at crates/hivekeep-devtools/src/lib.rs:1:1:
+snapshot was not restored
+</system-err>
+        </testcase>
+    </testsuite>
+</testsuites>
