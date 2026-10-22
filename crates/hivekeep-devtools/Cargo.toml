@@ -1,0 +1,24 @@
+[package]
+name = "hivekeep-devtools"
+description = "Developer tooling for Hivekeep: API lint and CI test-report checks."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+# Compiles .proto sources at runtime (with comments) for the API lint.
+protox = { workspace = true }
+prost-reflect = { workspace = true }
+quick-xml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
