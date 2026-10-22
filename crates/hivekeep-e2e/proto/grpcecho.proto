@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package grpcecho;
+
+// Echo is the gRPC origin the e2e suites drive through the gate.
+service Echo {
+  // Echo returns the message it was sent.
+  rpc Echo(EchoRequest) returns (EchoResponse) {}
+
+  // EchoStream returns the message it was sent count times, one response per
+  // message, each numbered with its position in the stream.
+  rpc EchoStream(EchoStreamRequest) returns (stream EchoResponse) {}
+
+  // EchoBidi answers every request with one response as each request
+  // arrives, numbered with its position in the stream. The caller decides how
+  // many to send and half-closes when done. The server must not wait for the
+  // request stream to end before answering: a caller that sends its next
+  // request only after reading the previous response would deadlock against
+  // a server (or a relay) that drains the request direction first.
+  rpc EchoBidi(stream EchoRequest) returns (stream EchoResponse) {}
+}
+
+message EchoRequest {
+  // The message to be echoed back.
+  string message = 1;
+}
+
+message EchoStreamRequest {
+  // The message to be echoed back in every response.
+  string message = 1;
+
+  // How many responses to send. Must be positive.
+  int32 count = 2;
+}
+
+message EchoResponse {
+  // The message echoed back.
+  string message = 1;
+
+  // The response's zero-based position in the stream, so a caller can tell a
+  // reordered or deduplicated stream from an intact one. Always 0 for Echo.
+  int32 index = 2;
+}
