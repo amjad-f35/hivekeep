@@ -1,0 +1,424 @@
+
+# Define Permissions (Read-Only for Pods)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hivekeep-api
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+# Tells a deleted node from a missing keeper, so revert and delete of an actor
+# on a node that is gone do not wait for that keeper forever.
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get"]
+- apiGroups: ["hivekeep.io"]
+  resources: ["workerpools", "csidriverconfigs"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "watch", "list"]
+---
+# Create Service Account for Workload Identity
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hivekeep-api
+  namespace: hivekeep-system
+---
+# 4. Bind Identity to Permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hivekeep-api
+subjects:
+- kind: ServiceAccount
+  name: hivekeep-api
+  namespace: hivekeep-system
+roleRef:
+  kind: ClusterRole
+  name: hivekeep-api
+  apiGroup: rbac.authorization.k8s.io
+---
+# 5. Deploy the API Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hivekeep-api
+  namespace: hivekeep-system
+spec:
+  replicas: 2
+  strategy:
+    # Update replicas one at a time, create a new one first, then delete the old one.
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: hivekeep-api
+  template:
+    metadata:
+      labels:
+        app: hivekeep-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      # TODO: Add topologySpreadConstraints to spread replicas across nodes and zones.
+      serviceAccountName: hivekeep-api
+      # Budget for the full shutdown sequence: --drain-delay (sized to cover
+      # the readinessProbe below reaching NotReady, plus propagation) +
+      # --drain-timeout.
+      terminationGracePeriodSeconds: 40
+      # The control object-store plugin deletes and copies external snapshots
+      # for hivekeep-api, over a Unix socket in a pod-local emptyDir. A native
+      # sidecar starts before hivekeep-api and stops after it. hivekeep-api
+      # starts only once the startup probe sees the plugin serving.
+      initContainers:
+      - name: objectstore-plugin
+        image: REGISTRY_PLACEHOLDER/hivekeep-objectstore-plugin:0.1.0
+        restartPolicy: Always
+        args:
+        - control
+        - --socket=/run/objectstore-plugin/control.sock
+        # The credential exchange. On GCS, node plugins trade an actor JWT for
+        # a token scoped to that actor's snapshots. On S3 it answers
+        # UNIMPLEMENTED and the node plugins never call it. It serves over TLS
+        # on its own port with the pod's service DNS certificate, verifies
+        # JWTs with the public keys mounted below, and reaches hivekeep-api
+        # over the loopback with the pod identity certificate. The issuer must
+        # be the one hivekeep-api mints with, so both read it from the same
+        # ConfigMap key. On GCS it downscopes a token for the snapshot
+        # transfer service account, which it impersonates.
+        - --exchange-listen=:8445
+        - --actor-jwt-issuer=$(HK_API_ACTOR_JWT_ISSUER)
+        - --transfer-service-account=$(HK_API_SNAPSHOT_TRANSFER_SERVICE_ACCOUNT)
+        ports:
+        - name: exchange
+          containerPort: 8445
+        # The plugin listens on a Unix socket, which a gRPC probe cannot
+        # reach, and the image has no shell, so the binary checks itself.
+        startupProbe:
+          exec:
+            command:
+            - /usr/local/bin/hivekeep-objectstore-plugin
+            - healthcheck
+            - --socket=/run/objectstore-plugin/control.sock
+          periodSeconds: 2
+          failureThreshold: 30
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        # The sidecar, not hivekeep-api, holds the object storage settings:
+        # it copies external snapshots for tags and deletes the ones nothing
+        # refers to any more, so it needs the same backend keeper's sidecar
+        # reads and writes them through. Unset or "gcs" selects GCS with
+        # ambient credentials; "s3" with the AWS_* variables selects S3 (see
+        # the kind overlay). hivekeep-api exits if HK_STORAGE_BACKEND is
+        # set on it.
+        - name: HK_STORAGE_BACKEND
+          value: "gcs"
+        - name: HK_API_ACTOR_JWT_ISSUER
+          valueFrom:
+            configMapKeyRef:
+              name: hivekeep-api-envvars
+              key: HK_API_ACTOR_JWT_ISSUER
+        - name: HK_API_SNAPSHOT_TRANSFER_SERVICE_ACCOUNT
+          valueFrom:
+            configMapKeyRef:
+              name: hivekeep-api-envvars
+              key: HK_API_SNAPSHOT_TRANSFER_SERVICE_ACCOUNT
+        # The exchange verifies hivekeep-api's certificate against the API
+        # Service name in this namespace.
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        envFrom:
+        - configMapRef:
+            name: hivekeep-otel-config
+        volumeMounts:
+        - name: objectstore-plugin
+          mountPath: /run/objectstore-plugin
+        # For the exchange: its serving certificate, the client certificate it
+        # dials hivekeep-api with, and the public keys of the actor JWT
+        # pool. Only the jwks item is projected, never the pool itself, so the
+        # sidecar cannot mint JWTs.
+        - name: "servicedns"
+          mountPath: "/run/servicedns.podcert.hivekeep.io"
+          readOnly: true
+        - name: "podidentity"
+          mountPath: "/run/podidentity.podcert.hivekeep.io"
+          readOnly: true
+        - name: "actor-id-jwt-jwks"
+          mountPath: "/run/actor-id-jwt-jwks"
+          readOnly: true
+      containers:
+      - name: hivekeep-api
+        image: REGISTRY_PLACEHOLDER/hivekeep-api:0.1.0
+        args:
+          - "--grpc-server-cred-bundle=/run/servicedns.podcert.hivekeep.io/credential-bundle.pem"
+          - --config-file=/run/apiconfig.hivekeep.io/apiconfig.textproto
+          - --authentication-config=/etc/hivekeep-api/authentication/authentication.yaml
+          - --postgres-read-write-connection-string=@env
+          - --postgres-owner-connection-string=@env
+          - --postgres-read-write-role=@env
+          - --postgres-owner-role=@env
+          - --postgres-schema=@env
+          - --actor-id-jwt-pool=/run/actor-id-jwt-pool/pool.json
+          - --actor-jwt-issuer=@env
+          - --actor-id-ca-pool=/run/actor-id-ca-pool/pool.json
+          - --keeper-client-cred-bundle=/run/podidentity.podcert.hivekeep.io/credential-bundle.pem
+          - --pod-identity-ca-certs=/run/podidentity.podcert.hivekeep.io/trust-bundle.pem
+          # TODO: Remove when egress API pr is merged. This turns on pluggable actor
+          # egress cluster-wide. hivekeep-api stamps this address onto every keeper
+          # Run/Restore, worker hands it to the worker tunnel, and actor TCP egress is
+          # transparently redirected (nftables) into the worker tunnel, which wraps it in
+          # mTLS + HTTP CONNECT to the egress gateway.
+          - --default-egress-gateway-address=gate-egress.hivekeep-system.svc:443
+          # Graceful shutdown knobs. The sum must fit within terminationGracePeriodSeconds.
+          - --drain-delay=13s
+          - --drain-timeout=15s
+          - --objectstore-plugin-socket=/run/objectstore-plugin/control.sock
+          - --snapshot-location=@env
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - ALL
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),service.instance.id=$(POD_UID)
+        # OTLP exporter settings are shared by every control plane component;
+        # see manifests/install/hivekeep-otel-config.yaml. Listed first so the
+        # per-developer ConfigMap below can still override a key.
+        envFrom:
+        - configMapRef:
+            name: hivekeep-otel-config
+        # Inject env vars from a ConfigMap created by each developer.  This lets
+        # each developer customize their own PostgreSQL connection settings without having
+        # to edit this manifest, which can remain constant across all
+        # developers.
+        - configMapRef:
+            name: hivekeep-api-envvars
+            optional: true
+        # Sensitive env vars (e.g. a Postgres DSN carrying a password) live in
+        # a Secret rather than the ConfigMap above. Listed last so a key
+        # present in both takes its value from the Secret.
+        - secretRef:
+            name: hivekeep-api-secret-envvars
+            optional: true
+        volumeMounts:
+        - name: objectstore-plugin
+          mountPath: /run/objectstore-plugin
+        # servicedns: the apiserver's own gRPC serving cert (DNS SAN hivekeep-api.hivekeep-system.svc).
+        - name: "servicedns"
+          mountPath: "/run/servicedns.podcert.hivekeep.io"
+        # podidentity: the apiserver's client identity (SPIFFE) when it dials
+        # keeper, plus the trust bundle for verifying
+        # keeper's serving certificate.
+        - name: "podidentity"
+          mountPath: "/run/podidentity.podcert.hivekeep.io"
+        # postgres: separate owner and read/write certificates, with each login as its CN.
+        - name: "postgres"
+          mountPath: "/run/postgres.podcert.hivekeep.io"
+          readOnly: true
+        - name: "actor-id-jwt-pool"
+          mountPath: "/run/actor-id-jwt-pool"
+        - name: "actor-id-ca-pool"
+          mountPath: "/run/actor-id-ca-pool"
+          readOnly: true
+        - name: "api-config"
+          mountPath: "/run/apiconfig.hivekeep.io"
+          readOnly: true
+        - name: "authentication-config"
+          mountPath: "/etc/hivekeep-api/authentication"
+          readOnly: true
+        # postgres-server-ca: server CA for an external Postgres, referenced
+        # by the DSN via sslrootcert (sslmode=verify-ca). Empty unless the
+        # postgres-server-ca Secret exists. Cloud SQL does not need this: it
+        # uses the Auth Proxy sidecar (see
+        # manifests/install/cloudsql/proxy-sidecar-patch.yaml), which handles TLS
+        # itself.
+        - name: "postgres-server-ca"
+          mountPath: "/run/postgres-server-ca"
+          readOnly: true
+        ports:
+        - containerPort: 443
+        - name: prometheus
+          containerPort: 9090
+        - name: health
+          containerPort: 9091
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          failureThreshold: 3
+        # :9091 is bound near the end of boot, after the store connect and
+        # the schema migrations, so nothing answers here until both finish.
+        # The store connect alone budgets 60s (30 attempts, 2s apart) and the
+        # migrations serialize across replicas on an advisory lock. Without a
+        # startup probe the liveness probe below SIGTERMs the container at
+        # ~30s, halfway through that budget: the retry loop is rooted in the
+        # signal context, so it reports "context canceled" and the process
+        # exits into CrashLoopBackOff instead of waiting out a store that is
+        # merely slow to return. A booting replica is not a dead one.
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          periodSeconds: 5
+          failureThreshold: 24
+        # /healthz stays 200 while a terminating pod drains; /readyz
+        # turns 503, so liveness and readiness diverge correctly during
+        # shutdown. /readyz also turns 503 while the store is unreachable,
+        # pinged over its own connection so a busy request pool cannot fail
+        # it, and /healthz stays 200: the pool reconnects without a restart.
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: objectstore-plugin
+        emptyDir: {}
+      - name: "servicedns"
+        projected:
+          sources:
+          - podCertificate:
+              signerName: servicedns.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem
+          - clusterTrustBundle:
+              signerName: servicedns.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: trust-bundle.pem
+      - name: "podidentity"
+        projected:
+          sources:
+          - podCertificate:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem
+          - clusterTrustBundle:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: trust-bundle.pem
+      - name: "postgres"
+        projected:
+          sources:
+          - podCertificate:
+              signerName: postgres.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: hivekeep_owner_user.pem
+              userAnnotations:
+                postgres.podcert.hivekeep.io/username: hivekeep_owner_user
+          - podCertificate:
+              signerName: postgres.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: hivekeep_readwrite_user.pem
+              userAnnotations:
+                postgres.podcert.hivekeep.io/username: hivekeep_readwrite_user
+      - name: "actor-id-jwt-pool"
+        projected:
+          sources:
+          - secret:
+              name: "actor-id-jwt-pool"
+              items:
+              - key: "pool"
+                path: "pool.json"
+      # The same Secret's public keys alone, for the objectstore-plugin
+      # sidecar's JWT verification. hivekeep-setup and hivectl admin keep the
+      # jwks key in step with pool.
+      - name: "actor-id-jwt-jwks"
+        projected:
+          sources:
+          - secret:
+              name: "actor-id-jwt-pool"
+              items:
+              - key: "jwks"
+                path: "jwks.json"
+      - name: "actor-id-ca-pool"
+        projected:
+          sources:
+          - secret:
+              name: "actor-id-ca-pool"
+              items:
+              - key: "pool"
+                path: "pool.json"
+      - name: "api-config"
+        configMap:
+          name: "hivekeep-api-config"
+      - name: "authentication-config"
+        configMap:
+          name: "hivekeep-api-authentication"
+      - name: "postgres-server-ca"
+        secret:
+          secretName: "postgres-server-ca"
+          optional: true
+---
+# Allow voluntary disruptions (node drains, cluster upgrades) to take
+# at most one API server pod at a time, at any replica count.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hivekeep-api
+  namespace: hivekeep-system
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: hivekeep-api
+---
+# 6. Expose the Actor Assigner
+apiVersion: v1
+kind: Service
+metadata:
+  name: hivekeep-api
+  namespace: hivekeep-system
+spec:
+  # Headless (i.e. `clusterIP: None`) services make DNS return one A record per
+  # ready pod so gRPC clients can load balance client-side.
+  clusterIP: None
+  # Prefer, not Require: Require fails Service creation on a single-stack cluster.
+  ipFamilyPolicy: PreferDualStack
+  selector:
+    app: hivekeep-api
+  ports:
+  - name: grpc
+    protocol: TCP
+    port: 443
+    targetPort: 443
+  # The objectstore-plugin sidecar's credential exchange, called by the node
+  # plugins beside keeper.
+  - name: exchange
+    protocol: TCP
+    port: 8445
+    targetPort: 8445

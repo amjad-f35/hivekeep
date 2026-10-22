@@ -1,0 +1,27 @@
+# This demo shows that two ActorTemplates running two different binaries can
+# share a single WorkerPool, even from different hives. A WorkerPool is
+# image-agnostic capacity (its pods only run the worker supervisor); each
+# ActorTemplate carries its own workload image and gates on the pool via
+# workerSelector, a label selector matched against the pool's labels (no
+# hive or namespace scoping involved: pool selection is cluster-wide).
+# The "counter" and "fspersist" templates each sit in their own hive
+# (counter-template.yaml.tmpl, fspersist-template.yaml.tmpl) and both select
+# this one "shared-pool" via the same workload label.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-demo-multi-template-pool
+---
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: shared-pool
+  namespace: hivekeep-demo-multi-template-pool
+  labels:
+    workload: multi-template-shared
+spec:
+  replicas: 3
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-gvisor:0.1.0
+  sandboxClasses:
+  - name: gvisor

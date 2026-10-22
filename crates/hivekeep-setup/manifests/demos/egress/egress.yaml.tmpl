@@ -1,0 +1,24 @@
+# Worker pool for the egress demo. The ActorTemplate is a hivekeep resource,
+# not a CRD: it lives in egress-template.yaml.tmpl and is created through the
+# hivekeep API with `hivectl create actor-template`. The template also trusts
+# the egress gateway CA, which mints the per-SNI leaf the actor sees.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-demo-egress
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: egress
+  namespace: hivekeep-demo-egress
+  labels:
+    workload: egress
+spec:
+  replicas: 2
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-gvisor:0.1.0
+  sandboxClasses:
+  - name: gvisor

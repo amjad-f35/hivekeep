@@ -1,0 +1,154 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: hivekeep-system
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hivekeep-client
+  namespace: hivekeep-system
+  labels:
+    apps: hivekeep-client
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hivekeep-controller
+  namespace: hivekeep-system
+  labels:
+    apps: hivekeep-controller
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hivekeep-controller
+subjects:
+- kind: ServiceAccount
+  name: hivekeep-controller
+  namespace: hivekeep-system
+roleRef:
+  kind: ClusterRole
+  name: hivekeep-controller
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hivekeep-controller
+  namespace: hivekeep-system
+subjects:
+- kind: ServiceAccount
+  name: hivekeep-controller
+  namespace: hivekeep-system
+roleRef:
+  kind: Role
+  name: hivekeep-controller
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: hivekeep-controller
+  namespace: hivekeep-system
+  labels:
+    app: hivekeep-controller
+spec:
+  selector:
+    app: hivekeep-controller
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: hivekeep-controller
+  namespace: hivekeep-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hivekeep-controller
+  template:
+    metadata:
+      labels:
+        app: hivekeep-controller
+    spec:
+      serviceAccountName: hivekeep-controller
+      containers:
+      - name: hivekeep-controller
+        image: REGISTRY_PLACEHOLDER/hivekeep-controller:0.1.0
+        args:
+        - --api-ca-file=/run/servicedns-ca/trust-bundle.pem
+        - --api-client-cert=/run/podidentity.podcert.hivekeep.io/credential-bundle.pem
+        - --dns-egress-policy=enforce-in-tunnel
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),service.instance.id=$(POD_UID)
+        # OTLP exporter settings are shared by every control plane component;
+        # see manifests/install/hivekeep-otel-config.yaml. The controller also
+        # propagates these to the worker pods it creates, except the exporter
+        # selection, which it takes from the HK_WORKER_OTEL_*_EXPORTER keys.
+        envFrom:
+        - configMapRef:
+            name: hivekeep-otel-config
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        - name: healthz
+          containerPort: 8081
+          protocol: TCP
+        volumeMounts:
+        # Controller's own client identity presented to hivekeep-api.
+        - name: "podidentity"
+          mountPath: "/run/podidentity.podcert.hivekeep.io"
+        # Trust bundle used to verify hivekeep-api's servicedns serving cert.
+        - name: "servicedns-ca"
+          mountPath: "/run/servicedns-ca"
+      volumes:
+      - name: "podidentity"
+        projected:
+          sources:
+          - podCertificate:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem
+      - name: "servicedns-ca"
+        projected:
+          sources:
+          - clusterTrustBundle:
+              signerName: servicedns.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: trust-bundle.pem

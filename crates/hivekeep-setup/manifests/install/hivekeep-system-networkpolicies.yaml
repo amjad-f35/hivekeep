@@ -1,0 +1,227 @@
+# Ingress NetworkPolicies for the hivekeep-system control plane.
+#
+# Every pod in hivekeep-system is denied ingress by default; the policies below
+# admit only the flows the control plane needs. NetworkPolicies are additive,
+# so a port is reachable exactly when some policy here (or another one that
+# selects the pod, such as k8s-credential-provider's) admits it. Ports that no
+# policy admits -- the router's /statusz port (4040), the bundled postgres from
+# anything but hivekeep-api, keeper's Keeper from anything but
+# hivekeep-api -- are reachable only through `kubectl port-forward`, which
+# NetworkPolicy does not filter.
+#
+# Policies only take effect on a cluster whose network plugin enforces them
+# (GKE Dataplane V2, Calico, Cilium, kindnet, ...).
+#
+# Several workloads are applied by the installer outside this bundle (postgres,
+# gate-egress, k8s-credential-provider); their policies live here anyway so
+# the default deny never lands without the allow rules that go with it. A
+# policy whose pods do not exist selects nothing.
+#
+# Ports are named rather than numbered where the workloads name them (envoy
+# serves the egress gateway on 443 as "https"), so a policy does not depend
+# on the dataplane's port numbers.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: hivekeep-system
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+# The Hivekeep API. Admits control plane components and pods in namespaces
+# labeled hivekeep.io/api-access=true (e.g. benchmarks, dashboards). Worker pods
+# (hivekeep.io/worker-pool) are excluded. Requests are still authenticated and
+# authorized by hivekeep-api; this restricts network-level ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hivekeep-api
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: hivekeep-api
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - hivekeep-controller
+          - keeper
+          - gate-egress
+          - gate-router
+    - namespaceSelector:
+        matchLabels:
+          hivekeep.io/api-access: "true"
+      podSelector:
+        matchExpressions:
+        - key: hivekeep.io/worker-pool
+          operator: DoesNotExist
+    ports:
+    - protocol: TCP
+      port: 443
+  # The objectstore-plugin sidecar's credential exchange is for the node
+  # plugins beside keeper and nothing else.
+  - from:
+    - podSelector:
+        matchLabels:
+          app: keeper
+    ports:
+    - protocol: TCP
+      port: 8445
+---
+# The bundled postgres is reached only by hivekeep-api. The installer runs
+# psql through `kubectl exec`, and the probes are exec probes, so neither needs
+# network access.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: hivekeep-api
+    ports:
+    - protocol: TCP
+      port: postgres
+---
+# keeper's gRPC port is called only by hivekeep-api, which dials the keeper
+# pod IP. Worker pods talk to keeper over its node-local Unix socket, not this
+# port. The hostPort mapping lands on the pod, so this policy covers it too.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keeper
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: keeper
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: hivekeep-api
+    ports:
+    - protocol: TCP
+      port: grpc
+---
+# The router's data ports carry every request to an actor, from pods in any
+# namespace and from load balancers and Gateways outside the cluster, so they
+# admit any source. What can actually reach them is decided by the Service
+# type (ClusterIP by default), any Gateway or LoadBalancer in front of the
+# router, and the cluster's firewall rules; the router itself checks the target
+# actor of every request.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gate-router
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: gate-router
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: https
+    - protocol: TCP
+      port: connect-tls
+---
+# hivekeep-idp-server serves the actor JWT discovery document and key set. Relying
+# parties fetch them from pods in any namespace and, through an Ingress or a
+# load balancer, from outside the cluster. Both documents are public, so the
+# port admits any source.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hivekeep-idp-server
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: hivekeep-idp-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: https
+---
+# The egress gateway is reached by the worker tunnel in worker pods, which the
+# WorkerPool controller labels hivekeep.io/worker-pool, in whatever namespace the
+# WorkerPool lives in.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gate-egress
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: gate-egress
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector: {}
+      podSelector:
+        matchExpressions:
+        - key: hivekeep.io/worker-pool
+          operator: Exists
+    ports:
+    - protocol: TCP
+      port: https
+---
+# Metrics and health endpoints. Kubelet probes come from the node and scrapers
+# run in whatever namespace the monitoring stack uses (GKE Managed Prometheus,
+# otel-system, a user's Prometheus), so these admit any source. They serve
+# metrics and readiness only; the router's /statusz is not among them.
+#
+# k8s-credential-provider is left out: its own policy admits only the egress
+# gateway, and it stays that way (docs/egress-credential-injection.md). Its
+# kubelet probes come from the node, which NetworkPolicy does not block.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hivekeep-system-observability
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: NotIn
+      values:
+      - k8s-credential-provider
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: metrics
+    - protocol: TCP
+      port: prometheus
+    - protocol: TCP
+      port: envoy-metrics
+    - protocol: TCP
+      port: health
+    - protocol: TCP
+      port: healthz

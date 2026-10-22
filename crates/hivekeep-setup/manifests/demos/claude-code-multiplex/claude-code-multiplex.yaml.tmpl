@@ -1,0 +1,25 @@
+# Worker pool for the claude-code-multiplex demo. The three agent
+# ActorTemplates live in agent-*-template.yaml.tmpl and are created through
+# the hivekeep API with `hivectl create actor-template`; sharing a 2-pod pool
+# between 3 agents is the multiplex pressure that makes the hivekeep
+# suspend/resume behavior visible.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: claude-multiplex-demo
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: claude-workerpool
+  namespace: claude-multiplex-demo
+  labels:
+    workload: claude-multiplex
+spec:
+  replicas: 2
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-gvisor:0.1.0
+  sandboxClasses:
+  - name: gvisor

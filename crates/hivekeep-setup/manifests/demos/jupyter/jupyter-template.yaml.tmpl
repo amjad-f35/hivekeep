@@ -1,0 +1,36 @@
+# ActorTemplate (protojson-shaped hivekeep.api.v1.ActorTemplate) for the jupyter
+# demo. Applied with `hivectl create actor-template -f -`; the
+# hivekeep-demo-jupyter hive must exist. The image is already pinned by
+# digest, so image resolution passes it through unchanged.
+metadata:
+  hive: hivekeep-demo-jupyter
+  name: jupyter
+workerSelector:
+  matchLabels:
+    workload: jupyter
+containers:
+- name: jupyter
+  image: "quay.io/jupyter/base-notebook@sha256:23fbe16371af3c0fdc833fa0962b42fd07811e152b821ff51d19a8d6e9cc86cf"
+  command:
+  - jupyter
+  - lab
+  - "--allow-root"
+  - "--ServerApp.token=''"
+  - "--ServerApp.password=''"
+  - "--ServerApp.allow_origin='*'"
+  - "--ServerApp.disable_check_xsrf=True"
+  - "--port=80"
+  - "--ip=0.0.0.0"
+  wakeupProbe:
+    httpGet:
+      path: /api
+      port: 80
+# Sandbox size: room for a few kernels and their data next to the Jupyter
+# server.
+resources:
+  limits:
+    cpuMillicores: 2000
+    memoryBytes: 4294967296 # 4Gi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-demo-jupyter/

@@ -1,0 +1,22 @@
+# The hive→namespace authorization policy k8s-credential-provider enforces: an actor's
+# hive may only resolve Secrets whose URI namespace is listed for it here.
+# Enforcement is default-deny — an hive absent from this file resolves
+# nothing. The install creates this ConfigMap only when it is absent, granting
+# nothing; the provider needs it to start.
+#
+# TODO: k8s-credential-provider loads this once at startup, so editing this ConfigMap
+# requires restarting the k8s-credential-provider Deployment. Make it reload dynamically.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-credential-provider-namespace-policy
+  namespace: hivekeep-system
+data:
+  namespace-policy.yaml: |
+    # No hive may resolve any Secret until it is listed here, for example:
+    #
+    #   policies:
+    #   - hive: team-a
+    #     allowedNamespaces:
+    #     - ns1
+    policies: []

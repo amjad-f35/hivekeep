@@ -1,0 +1,142 @@
+# The fake data plane for control-plane benchmarks, layered by hivekeep-setup
+# --fake-data-plane over the keeper and hivekeep-controller applies. fake-keeper
+# takes keeper's place in its own DaemonSet, and fake-workersync honors every
+# WorkerPool with fake Workers on the fake-keeper nodes instead of worker
+# pods. Actors placed on them do not exist. Never install this on a cluster
+# that serves real actors.
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - fake-workersync.yaml
+
+patches:
+  # fake-keeper runs in keeper's DaemonSet, so it keeps keeper's name, labels,
+  # service account (whose pod certificate carries keeper's SPIFFE ID), and
+  # node selector. It writes snapshot placeholders itself, in place of the
+  # objectstore-plugin sidecar, so it takes that sidecar's env, the storage
+  # settings each overlay gives it, and the placeholders land where keeper's
+  # snapshots would. Everything keeper needs from the host goes, and so do its
+  # scrape annotations, since fake-keeper serves no metrics.
+  # hivekeep.io/fake-keeper is how fake-workersync finds the pods.
+  - target:
+      kind: DaemonSet
+      labelSelector: app=keeper
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/labels/hivekeep.io~1fake-keeper
+        value: "true"
+      - op: remove
+        path: /spec/template/metadata/annotations/prometheus.io~1scrape
+      - op: remove
+        path: /spec/template/metadata/annotations/prometheus.io~1port
+      - op: add
+        path: /spec/template/spec/automountServiceAccountToken
+        value: false
+      # objectstore-plugin is keeper's only init container.
+      - op: copy
+        from: /spec/template/spec/initContainers/0/env
+        path: /spec/template/spec/containers/0/env
+      - op: remove
+        path: /spec/template/spec/initContainers
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: REGISTRY_PLACEHOLDER/hivekeep-fake-keeper:0.1.0
+      # fake-keeper runs with its defaults apart from where hivekeep-api
+      # lives. A benchmark tunes it through the fake-keeper-tuning ConfigMap,
+      # which no install creates or resets.
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+        - --api-address=hivekeep-api.hivekeep-system.svc:443
+        - --api-server-name=hivekeep-api.hivekeep-system.svc
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value:
+          configMapRef:
+            name: fake-keeper-tuning
+            optional: true
+      - op: replace
+        path: /spec/template/spec/containers/0/ports
+        value:
+        - name: grpc
+          containerPort: 21998
+        # fake-workersync's capacity reports, relayed to hivekeep-api under
+        # this pod's keeper identity; only fake-workersync's is admitted.
+        - name: relay
+          containerPort: 8086
+        # keeper's probes, kept from its container, target this port.
+        - name: health
+          containerPort: 9091
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop: ["ALL"]
+      - op: replace
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+        - name: podidentity
+          mountPath: /run/podidentity.podcert.hivekeep.io
+          readOnly: true
+        - name: servicedns-ca
+          mountPath: /run/servicedns.podcert.hivekeep.io
+          readOnly: true
+      - op: replace
+        path: /spec/template/spec/volumes
+        value:
+        - name: podidentity
+          projected:
+            sources:
+            - podCertificate:
+                signerName: podidentity.podcert.hivekeep.io/identity
+                keyType: ECDSAP256
+                credentialBundlePath: credential-bundle.pem
+            - clusterTrustBundle:
+                signerName: podidentity.podcert.hivekeep.io/identity
+                labelSelector:
+                  matchLabels:
+                    podcert.hivekeep.io/canarying: live
+                path: trust-bundle.pem
+        - name: servicedns-ca
+          projected:
+            sources:
+            - clusterTrustBundle:
+                signerName: servicedns.podcert.hivekeep.io/identity
+                labelSelector:
+                  matchLabels:
+                    podcert.hivekeep.io/canarying: live
+                path: trust-bundle.pem
+  # fake-workersync calls hivekeep-api in hivekeep-controller's place.
+  - target:
+      kind: NetworkPolicy
+      name: hivekeep-api
+    patch: |-
+      - op: add
+        path: /spec/ingress/0/from/0/podSelector/matchExpressions/0/values/-
+        value: fake-workersync
+  # Grant fake-workersync the controller authz role so it can manage Workers.
+  - target:
+      kind: Deployment
+      name: hivekeep-api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --controller-spiffe-id=spiffe://cluster.local/ns/hivekeep-system/sa/fake-workersync
+  # fake-workersync stands in for hivekeep-controller, which must not run beside
+  # it: its WorkerPool controller would make real worker pods for the same
+  # pools, and its worker syncer deletes every Worker with no live pod. Its
+  # NetworkPolicy and egress MITM trust controllers stop too; fake actors
+  # need neither.
+  - target:
+      kind: Deployment
+      name: hivekeep-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0

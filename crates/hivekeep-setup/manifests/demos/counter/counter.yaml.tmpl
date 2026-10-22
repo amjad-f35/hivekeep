@@ -1,0 +1,49 @@
+# Worker pool for the counter demo. The ActorTemplate is not a CRD: it lives
+# in counter-template.yaml.tmpl and is created through the hivekeep API with
+# `hivectl create actor-template`.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-demo-counter
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: counter
+  namespace: hivekeep-demo-counter
+  labels:
+    workload: counter
+spec:
+  # Sized to what a small node (a single kind node in CI) can actually place,
+  # with one worker to spare: the only suites that run actors on this pool are
+  # networking and metrics, one actor each, and they can run concurrently. A
+  # pool that cannot place every replica is worse than a smaller one -- the
+  # deploy blocks on a rollout that never completes.
+  replicas: 3
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-gvisor:0.1.0
+  # No configRef: the pool follows the class default, the newest SandboxConfig
+  # of the class annotated sandboxconfig.hivekeep.io/is-class-default=true
+  # (gvisor-default as installed), and moves to a new default when one appears.
+  sandboxClasses:
+  - name: gvisor
+  template:
+    # Per-worker resources: these size the worker POD and advertise its
+    # scheduling capacity (the per-actor ceiling). The sandbox itself is sized by
+    # the ActorTemplate's resources in counter-template.yaml.tmpl, not by these
+    # (see the workers' sizing modules).
+    #
+    # Capacity comes from the limits (workerCapacity reads limits only), while the
+    # kube-scheduler packs nodes by the requests — so the CPU request is set well
+    # below the limit to keep the pool placeable alongside the rest of the install
+    # without changing what an actor is allowed to use. Memory is not
+    # compressible, so its request matches the limit.
+    resources:
+      limits:
+        cpu: "1"
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 1Gi

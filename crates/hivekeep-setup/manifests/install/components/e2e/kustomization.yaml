@@ -1,0 +1,25 @@
+# Tunes the control plane and data plane for end-to-end test runs. Selected by
+# hivekeep-setup under --e2e-tuning (or HK_INSTALL_E2E_TUNING=true), which
+# composes every control plane apply with this component.
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  # Upload asynchronous snapshots in the background 2s after a suspend (5m by
+  # default), so e2e suites run alongside uploads. Appended via JSON6902 rather
+  # than a strategic merge patch so the base or kind overlay's existing args
+  # are preserved.
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: keeper
+      namespace: hivekeep-system
+    patch: |-
+      - op: test
+        path: /spec/template/spec/containers/0/name
+        value: keeper
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --snapshot-upload-delay=2s

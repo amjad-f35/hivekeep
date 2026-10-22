@@ -1,0 +1,23 @@
+# ActorTemplate (protojson-shaped hivekeep.api.v1.ActorTemplate) for the parking
+# demo. Applied with `hivectl create actor-template -f -` after
+# the installer pins the image reference; the hivekeep-demo-parking
+# hive must exist.
+metadata:
+  hive: hivekeep-demo-parking
+  name: parking
+workerSelector:
+  matchLabels:
+    workload: parking
+containers:
+- name: counter
+  image: REGISTRY_PLACEHOLDER/hivekeep-demo-counter:0.1.0
+  command: ["/app/counter"]
+# Sandbox size. The pool sets no worker limits, so the worker offers the
+# node's allocatable and these only need to fit the node.
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-demo-parking/

@@ -1,0 +1,24 @@
+# ActorTemplate (protojson-shaped hivekeep.api.v1.ActorTemplate) for the fspersist
+# half of the multi-template demo. It lives in its own hive but selects
+# the same shared-pool as counter-template.yaml.tmpl. Applied with
+# `hivectl create actor-template -f -` after the installer pins the image
+# reference; the hivekeep-demo-multi-template-fspersist hive must
+# exist.
+metadata:
+  hive: hivekeep-demo-multi-template-fspersist
+  name: fspersist
+workerSelector:
+  matchLabels:
+    workload: multi-template-shared
+containers:
+- name: fspersist
+  image: REGISTRY_PLACEHOLDER/hivekeep-demo-fspersist:0.1.0
+# Sandbox size. The pool sets no worker limits, so the worker offers the
+# node's allocatable and these only need to fit the node.
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-demo-multi-template-fspersist/

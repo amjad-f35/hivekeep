@@ -1,0 +1,33 @@
+# Worker pool for the micro-VM (kata + cloud-hypervisor) variant of the
+# egress demo, so the networking suite's egress tests run against both
+# sandbox classes. The ActorTemplate is a hivekeep resource, not a CRD: it
+# lives in egress-microvm-template.yaml.tmpl and is created through the
+# hivekeep API with `hivectl create actor-template`. The cluster-wide `microvm`
+# SandboxConfig referenced by the pool is installed by
+# scripts/install-microvm-deps.sh
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-demo-egress-microvm
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: egress-microvm
+  namespace: hivekeep-demo-egress-microvm
+  labels:
+    workload: egress-microvm
+spec:
+  replicas: 2
+  sandboxClasses:
+  - name: microvm
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-microvm:0.1.0
+  # No template.resources, unlike the counter demo's micro-VM variant: an
+  # unlimited worker container reports no capacity, which the scheduler reads as
+  # unconstrained, and the pod requests nothing so it stays placeable next to
+  # the counter pool's reservation on CI's single kind node. What actually
+  # bounds the memory here is the ActorTemplate's resources, which size the
+  # guest.

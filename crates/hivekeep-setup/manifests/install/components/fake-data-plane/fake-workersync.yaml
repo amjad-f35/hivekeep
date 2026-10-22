@@ -1,0 +1,203 @@
+# fake-workersync, the fake data plane's stand-in for hivekeep-controller. hivekeep-setup
+# delete hivekeep-system deletes this file by name whether or not the install had
+# the fake data plane, so the ClusterRole and its binding never outlive it.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fake-workersync
+  namespace: hivekeep-system
+
+---
+
+# fake-workersync watches every WorkerPool and writes its status, and reads
+# what each fake-keeper node can allocate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fake-workersync
+rules:
+- apiGroups: ["hivekeep.io"]
+  resources: ["workerpools"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["hivekeep.io"]
+  resources: ["workerpools/status"]
+  verbs: ["update"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fake-workersync
+subjects:
+- kind: ServiceAccount
+  name: fake-workersync
+  namespace: hivekeep-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fake-workersync
+
+---
+
+# fake-workersync places fake Workers on the nodes that run a fake-keeper pod,
+# and sends each node's capacity reports to its relay.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fake-workersync-pods
+  namespace: hivekeep-system
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fake-workersync-pods
+  namespace: hivekeep-system
+subjects:
+- kind: ServiceAccount
+  name: fake-workersync
+  namespace: hivekeep-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: fake-workersync-pods
+
+---
+
+# Resolving hivekeep-api's k8s:/// target reads its EndpointSlices, through
+# the Role keeper is bound to.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fake-workersync-endpointslices
+  namespace: hivekeep-system
+subjects:
+- kind: ServiceAccount
+  name: fake-workersync
+  namespace: hivekeep-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: keeper-endpointslices
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-workersync
+  namespace: hivekeep-system
+  labels:
+    app: fake-workersync
+spec:
+  replicas: 1
+  # One fake-workersync at a time: a second, as a rolling update runs beside
+  # the first, registers Workers the other never learns of.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fake-workersync
+  template:
+    metadata:
+      labels:
+        app: fake-workersync
+    spec:
+      serviceAccountName: fake-workersync
+      containers:
+      - name: fake-workersync
+        image: REGISTRY_PLACEHOLDER/hivekeep-fake-workersync:0.1.0
+        args:
+        - --api-endpoint=k8s:///hivekeep-api.hivekeep-system.svc:443
+        - --api-server-name=hivekeep-api.hivekeep-system.svc
+        - --api-ca-file=/run/servicedns-ca/ca.crt
+        # Ready once it has adopted the registered fake Workers, which needs
+        # hivekeep-api serving.
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: health
+          periodSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        ports:
+        - name: health
+          containerPort: 9091
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: servicedns-ca
+          mountPath: /run/servicedns-ca
+          readOnly: true
+        - name: podidentity
+          mountPath: /run/podidentity.podcert.hivekeep.io
+          readOnly: true
+      volumes:
+      # The same client identity the load generator presents to hivekeep-api,
+      # also presented to the relay, plus the trust bundle the relay's certificate must chain
+      # to.
+      - name: servicedns-ca
+        projected:
+          sources:
+          - clusterTrustBundle:
+              signerName: servicedns.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: ca.crt
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem
+          - clusterTrustBundle:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: trust-bundle.pem
+
+---
+
+# Under hivekeep-system's default-deny ingress, admits fake-workersync's capacity
+# reports to the relay on each fake-keeper.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fake-keeper-relay
+  namespace: hivekeep-system
+spec:
+  podSelector:
+    matchLabels:
+      app: keeper
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: fake-workersync
+    ports:
+    - protocol: TCP
+      port: relay

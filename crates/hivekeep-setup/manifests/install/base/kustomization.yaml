@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# hivekeep-otel-config.yaml carries the OTLP settings every component above consumes
+# via envFrom. The kind overlay lists its own copy of the same ConfigMap name
+# instead of building on this directory, so the two never collide.
+#
+# pod-certificate-controller.yaml is deliberately absent. The installer
+# (hivekeep-setup) applies it on their own before this
+# bundle, through the podcert-size10 overlay on large clusters, and then set
+# WORKERS_PER_SIGNER on the Deployment. Listing the base file here would
+# re-apply it after those steps and revert both the overlay's flags and the
+# env override. The same goes for the sandboxconfig and gate-egress files:
+# the installers apply the variant they select, so they are not listed here
+# either.
+resources:
+  - ../hivekeep-api.yaml
+  - ../hivekeep-idp-server.yaml
+  - ../hivekeep-controller.yaml
+  - ../keeper.yaml
+  - ../gate-router.yaml
+  - ../gate-router-monitoring.yaml
+  - ../hivekeep-otel-config.yaml
+  - ../hivekeep-system-networkpolicies.yaml
