@@ -7,6 +7,14 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[[bin]]
+name = "hivekeep-apitool"
+path = "src/bin/hivekeep-apitool.rs"
+
+[[bin]]
+name = "hivekeep-junittool"
+path = "src/bin/hivekeep-junittool.rs"
+
 [dependencies]
 hivekeep-telemetry = { workspace = true }
 anyhow = { workspace = true }
