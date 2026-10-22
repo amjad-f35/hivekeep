@@ -8,7 +8,9 @@
 //! command tree ([`cli`]).
 
 pub mod builder;
+pub mod cli;
 pub mod config;
+pub mod demos;
 pub mod gcp;
 pub mod images;
 pub mod installdefaults;
