@@ -14,9 +14,16 @@
 //! `hivekeep-e2e-testserver` and `hivekeep-e2e-probe` binaries.
 
 pub mod backend;
+pub mod cmd;
 pub mod crd;
 pub mod fixtures;
 pub mod harness;
+pub mod manifest;
+pub mod pretty;
+pub mod preview;
 pub mod proto;
+pub mod protojson;
 pub mod roottest;
+pub mod settings;
 pub mod testcert;
+pub mod testenv;
