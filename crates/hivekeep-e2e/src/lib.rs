@@ -13,12 +13,15 @@
 //! The fixture servers the suites deploy are in [`fixtures`], shipped as the
 //! `hivekeep-e2e-testserver` and `hivekeep-e2e-probe` binaries.
 
+pub mod actors;
 pub mod backend;
 pub mod clients;
 pub mod cmd;
 pub mod collector_metrics;
 pub mod crd;
 pub mod credprovider;
+pub mod dataplane;
+pub mod egresspolicy;
 pub mod env;
 pub mod fixture;
 pub mod fixtures;
@@ -27,17 +30,21 @@ pub mod images;
 pub mod install;
 pub mod kube_util;
 pub mod manifest;
+pub mod namespace;
 pub mod portforward;
 pub mod preflight;
 pub mod pretty;
 pub mod preview;
+pub mod probe;
 pub mod proto;
 pub mod protojson;
 pub mod retry;
 pub mod roottest;
 pub mod sandbox;
+pub mod sandboxkill;
 pub mod settings;
 pub mod statusz;
 pub mod template;
 pub mod testcert;
 pub mod testenv;
+pub mod trustbundle;
