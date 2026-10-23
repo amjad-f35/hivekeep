@@ -1,0 +1,21 @@
+# The Kubernetes half of the websocket fixture; the ActorTemplate half is
+# websocket-template.yaml.tmpl.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e${FIXTURE_SUFFIX}
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: websocket
+  namespace: hivekeep-e2e${FIXTURE_SUFFIX}
+  labels:
+    workload: websocket${FIXTURE_SUFFIX}
+spec:
+  replicas: 1
+  workerImage: ${WORKER_IMAGE}
+${WORKERPOOL_RUNTIME}

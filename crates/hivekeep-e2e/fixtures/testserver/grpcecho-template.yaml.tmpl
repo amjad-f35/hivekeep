@@ -1,0 +1,37 @@
+# The gRPC Actor the ingress suite reaches through the gate router, running
+# the same `grpc` echo origin the egress suite deploys as a plain pod, so what
+# counts as a working RPC cannot differ between the two directions.
+#
+# A protojson-shaped hivekeep.api.v1.ActorTemplate (not a Kubernetes object),
+# created through the Hivekeep API by the fixture deployer.
+
+metadata:
+  hive: hivekeep-e2e-grpcecho${FIXTURE_SUFFIX}
+  name: grpcecho
+workerSelector:
+  matchLabels:
+    workload: grpcecho${FIXTURE_SUFFIX}
+containers:
+- name: grpcecho
+  image: ${TESTSERVER_IMAGE}
+  command: ["/usr/local/bin/hivekeep-e2e-testserver"]
+  # gRPC on the Actor's primary port, so the ingress test reaches it at the
+  # Actor's DNS name with no CONNECT and no port juggling.
+  args:
+  - "grpc"
+  - "--listen=:80"
+  - "--health-listen=:8080"
+  # The wakeup probe is an HTTP GET, which a gRPC server answers with a
+  # protocol error -- hence the second, HTTP-only port. Probing :80 would keep
+  # the Actor out of the ready phase forever.
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 8080
+    timeoutSeconds: 60
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e-grpcecho${FIXTURE_SUFFIX}/

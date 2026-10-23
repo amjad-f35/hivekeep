@@ -1,0 +1,95 @@
+# The egress probe the egressauthz suite drives: the test server's
+# `egressprobe` subcommand with the credential volumes that suite mints. It is
+# not a ServerPod because it needs those volumes and a namespace the suite
+# populates first. The suite substitutes ${NAMESPACE} with the randomized
+# namespace it created (so the probe goes away with it), ${SYSTEM_NAMESPACE}
+# with the install's namespace and ${EGRESS_GATEWAY_SERVICE} with the egress
+# gateway's Service name.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: egressprobe
+  namespace: ${NAMESPACE}
+  labels:
+    app: egressprobe
+    hivekeep.io/worker-pool: egressprobe
+spec:
+  restartPolicy: Never
+  containers:
+  - name: egressprobe
+    image: ${TESTSERVER_IMAGE}
+    args:
+    - "egressprobe"
+    - "--listen=:8080"
+    # The gateway lives in the install's namespace, which the probe cannot
+    # infer on its own.
+    - "--gateway-address=${EGRESS_GATEWAY_SERVICE}.${SYSTEM_NAMESPACE}.svc:443"
+    ports:
+    - name: http
+      containerPort: 8080
+    # The suite port-forwards to this pod, and a forward targets the first
+    # READY pod behind the Service. Without a readiness gate the forward can
+    # attach before the listener exists, and the first handshake then fails as
+    # a refused connection that looks like a gateway problem.
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+      periodSeconds: 2
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    # runAsUser is spelled out because a base image that declares no USER
+    # makes kubelet refuse runAsNonRoot on its own. 65532 is the conventional
+    # nonroot uid, the same one the egress gateway's pod uses.
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 65532
+      runAsGroup: 65532
+      capabilities:
+        drop: ["ALL"]
+    volumeMounts:
+    - name: "actor-identity-unknown"
+      mountPath: "/run/actor-identity-unknown"
+    - name: "podidentity"
+      mountPath: "/run/podidentity.podcert.hivekeep.io"
+    - name: "servicedns-ca"
+      mountPath: "/run/servicedns.podcert.hivekeep.io"
+  volumes:
+  - name: "actor-identity-unknown"
+    secret:
+      secretName: egressprobe-unknown-actor
+  - name: "podidentity"
+    projected:
+      sources:
+      - podCertificate:
+          signerName: podidentity.podcert.hivekeep.io/identity
+          keyType: ECDSAP256
+          credentialBundlePath: credential-bundle.pem
+  - name: "servicedns-ca"
+    projected:
+      sources:
+      - clusterTrustBundle:
+          signerName: servicedns.podcert.hivekeep.io/identity
+          labelSelector:
+            matchLabels:
+              podcert.hivekeep.io/canarying: live
+          path: trust-bundle.pem
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: egressprobe
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: egressprobe
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

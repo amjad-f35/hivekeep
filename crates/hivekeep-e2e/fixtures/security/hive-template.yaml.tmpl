@@ -1,0 +1,63 @@
+# The ActorTemplate of the cross-hive security fixture: a
+# protojson-shaped hivekeep.api.v1.ActorTemplate created through the Hivekeep API by
+# the e2e harness.
+#
+# BOTH hives deploy this same file. They differ only in the ${FIXTURE_SUFFIX}
+# they render with, which is what gives each its own hive and its own
+# snapshot prefix, so the suite compares two actors that are identical in
+# every respect except the boundary under test.
+#
+# The container is the shared e2e probe image. Its /readfile and /writefile
+# endpoints let the test try reads and writes from inside the running actor,
+# which is the only place the isolation claim can be checked: what the actor
+# actually sees at /data, not what the keeper's mount config says it should see.
+#
+# The workerSelector names the single shared pool (see hive-a-pool.yaml.tmpl),
+# not a per-hive one.
+
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: probe
+workerSelector:
+  matchLabels:
+    workload: hivekeep-e2e-security
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  volumeMounts:
+  # The probe expects its identity files under /run/hivekeep. The mount also makes
+  # the keeper write a per-actor identity file on the worker host, which is one
+  # of the host paths the attacker is checked against.
+  - name: system-info
+    mountPath: /run/hivekeep
+  # The per-actor durable directory whose isolation is under test.
+  - name: data
+    mountPath: /data
+  # Gate the golden snapshot on the probe actually serving, so a read or write
+  # right after a resume cannot race a sandbox checkpointed before the
+  # listener came up.
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+    timeoutSeconds: 60
+volumes:
+- name: system-info
+  systemInfo:
+    dataSources:
+    - actorMetadata:
+        items:
+        - field: ACTOR_METADATA_FIELD_NAME
+          path: actor-id
+        - field: ACTOR_METADATA_FIELD_HIVE
+          path: hive
+        - field: ACTOR_METADATA_FIELD_UID
+          path: actor-uid
+- name: data
+  durableDir: {}
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e${FIXTURE_SUFFIX}/

@@ -1,0 +1,85 @@
+# The capabilities fixture's ActorTemplates: protojson-shaped
+# hivekeep.api.v1.ActorTemplate documents (NOT the hivekeep.io/v1 CRD), created
+# through the Hivekeep API by the e2e harness. Three templates run the
+# same probe image and differ only in securityContext.capabilities, so the
+# suite can compare what the kernel reports inside the sandbox against what
+# the template asked for.
+
+# No securityContext: pins the default capability set, so a change to the
+# default is caught here and not only in the keeper's unit tests.
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: caps-default
+workerSelector:
+  matchLabels:
+    workload: caps
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+    timeoutSeconds: 60
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e-caps-default${FIXTURE_SUFFIX}/
+
+---
+
+# The set is exact rather than relative, so asserting it proves the drop and
+# the add at once.
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: caps-exact
+workerSelector:
+  matchLabels:
+    workload: caps
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  securityContext:
+    capabilities:
+      drop: ["ALL"]
+      add: ["NET_BIND_SERVICE"]
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+    timeoutSeconds: 60
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e-caps-exact${FIXTURE_SUFFIX}/
+---
+
+# No capabilities at all, and the probe still binds :80: both runtimes lift
+# the privileged-port limit, so the golden bake fails if that regresses.
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: caps-none
+workerSelector:
+  matchLabels:
+    workload: caps
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  securityContext:
+    capabilities:
+      drop: ["ALL"]
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+    timeoutSeconds: 60
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e-caps-none${FIXTURE_SUFFIX}/

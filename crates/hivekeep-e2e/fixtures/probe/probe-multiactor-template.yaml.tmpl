@@ -1,0 +1,39 @@
+# Probe template for multi-actor routing tests.
+
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: probe-multiactor
+workerSelector:
+  matchLabels:
+    workload: probe-multiactor
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  volumeMounts:
+  # Identity returned by /whoami.
+  - name: system-info
+    mountPath: /run/hivekeep
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+volumes:
+- name: system-info
+  systemInfo:
+    dataSources:
+    - actorMetadata:
+        items:
+        - field: ACTOR_METADATA_FIELD_NAME
+          path: actor-id
+        - field: ACTOR_METADATA_FIELD_HIVE
+          path: hive
+        - field: ACTOR_METADATA_FIELD_UID
+          path: actor-uid
+
+# Allow multiple actors to fit on one worker.
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 268435456 # 256Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e${FIXTURE_SUFFIX}/

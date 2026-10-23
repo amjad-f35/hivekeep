@@ -1,0 +1,27 @@
+# The Kubernetes half of the grpcecho fixture; the ActorTemplate half is
+# grpcecho-template.yaml.tmpl.
+#
+# Rendered for the sandbox class under test, so one manifest serves both
+# runtimes and the gVisor and micro-VM variants cannot drift apart. A block
+# placeholder with no value for the selected class takes its whole line.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e-grpcecho${FIXTURE_SUFFIX}
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: grpcecho
+  namespace: hivekeep-e2e-grpcecho${FIXTURE_SUFFIX}
+  labels:
+    workload: grpcecho${FIXTURE_SUFFIX}
+spec:
+  # One worker for the template's golden snapshot, plus headroom for the
+  # actors the suite resumes.
+  replicas: 2
+  workerImage: ${WORKER_IMAGE}
+${WORKERPOOL_RUNTIME}

@@ -1,0 +1,15 @@
+# Hive B of the cross-hive security fixture: a namespace only.
+#
+# Hive B deliberately has no WorkerPool. Pools are not scoped to an
+# hive, so B's actors are placed on the single-worker pool that
+# hive-a-pool.yaml.tmpl deploys in hive A's namespace. That forces
+# A's and B's actors to take turns on one worker, which is the reuse boundary
+# the suite tests.
+#
+# The namespace is still needed: Hivekeep reconciles an hive's
+# namespaced objects (network policies, for example) into it.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e${FIXTURE_SUFFIX}

@@ -1,0 +1,31 @@
+# The k8s half of the probe fixture: the namespace and the WorkerPool. The
+# ActorTemplate is the Hivekeep resource in probe-template.yaml.tmpl, created
+# through the Hivekeep API by the e2e harness.
+#
+# Rendered by the e2e harness, which fills the ${...} placeholders for
+# the sandbox class under test: one manifest serves both runtimes so the gVisor
+# and micro-VM variants cannot drift apart. A placeholder that has no value for
+# the selected class takes its whole line with it.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e-probe${FIXTURE_SUFFIX}
+  labels:
+    # Lets cleanup (kubectl delete ns -l hivekeep.io/e2e) find and delete this namespace when a failed
+    # test leaves the fixture behind for debugging.
+    hivekeep.io/e2e: "true"
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: probe
+  namespace: hivekeep-e2e-probe${FIXTURE_SUFFIX}
+  labels:
+    workload: probe${FIXTURE_SUFFIX}
+spec:
+  replicas: 3
+  workerImage: ${WORKER_IMAGE}
+${WORKERPOOL_RUNTIME}

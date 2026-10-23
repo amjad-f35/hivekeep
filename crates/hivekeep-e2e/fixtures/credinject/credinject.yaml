@@ -1,0 +1,51 @@
+# The egress credential-injection fixture: the Secret the suite's policy
+# injects, and the k8s-credential-provider authorization policy that lets the
+# probe fixture's hives resolve it. Applied by the harness's credential-provider setup
+# before the provider Deployment itself, which reads the ConfigMap once at
+# startup.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e-credinject-secrets
+  labels:
+    # Lets cleanup (kubectl delete ns -l hivekeep.io/e2e) find and delete this namespace when a failed
+    # test leaves the fixture behind for debugging.
+    hivekeep.io/e2e: "true"
+
+---
+
+# The credential the suite's EgressPolicy injects, resolved by the URI
+# hk-secret://k8s.io/default/hivekeep-e2e-credinject-secrets/api-token/token
+# (the harness's credential injection URI).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-token
+  namespace: hivekeep-e2e-credinject-secrets
+type: Opaque
+stringData:
+  token: "e2e-cred-inject-token"
+
+---
+
+# The hive→namespace authorization policy the provider enforces
+# (default-deny). The name and namespace are dictated by the configMap volume
+# in hivekeep-setup's egress-credential-injection/k8s-credential-provider.yaml. Both
+# probe-fixture hives are listed — the suffixes are deterministic per
+# sandbox class (see the harness's probe deployment and probe-template.yaml.tmpl) — so one
+# policy serves the gVisor and micro-VM variants.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-credential-provider-namespace-policy
+  namespace: hivekeep-system
+data:
+  namespace-policy.yaml: |
+    policies:
+    - hive: hivekeep-e2e-probe-egresscredinject
+      allowedNamespaces:
+      - hivekeep-e2e-credinject-secrets
+    - hive: hivekeep-e2e-probe-microvm-egresscredinject
+      allowedNamespaces:
+      - hivekeep-e2e-credinject-secrets

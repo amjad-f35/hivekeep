@@ -1,0 +1,52 @@
+# Boot-fetch variant of the probe template: a protojson-shaped
+# hivekeep.api.v1.ActorTemplate whose probe fetches the suite's BOOT_FETCH_URL through the
+# egress gateway before it listens, so its golden snapshot exists only if the
+# actor had egress while it booted. Selects the probe pool of probe.yaml.tmpl;
+# goldenEgressPolicy (preview gate GoldenEgressPolicy) allows the golden actor
+# to reach BOOT_FETCH_HOST; the suite gives the template the trust bundle and
+# BOOT_FETCH_HOST and BOOT_FETCH_URL (as template values).
+
+metadata:
+  hive: hivekeep-e2e-probe${FIXTURE_SUFFIX}
+  name: probe-bootfetch
+workerSelector:
+  matchLabels:
+    workload: probe${FIXTURE_SUFFIX}
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  env:
+  - name: PROBE_BOOT_FETCH_URL
+    value: ${BOOT_FETCH_URL}
+  volumeMounts:
+  - name: system-info
+    mountPath: /run/hivekeep
+  # Longer than the probe's boot fetch timeout, so a failed fetch is the
+  # probe's logged error rather than a probe timeout.
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+    timeoutSeconds: 60
+volumes:
+- name: system-info
+  systemInfo:
+    dataSources:
+    - actorMetadata:
+        items:
+        - field: ACTOR_METADATA_FIELD_NAME
+          path: actor-id
+${TEMPLATE_TRUST_BUNDLE}
+# The actor resolves BOOT_FETCH_HOST through its search path, and the DNS relay
+# answers only names the policy lists, so the policy also lists the name the
+# search path expands it to.
+goldenEgressPolicy:
+  rules:
+  - https:
+      hostnames: ["${BOOT_FETCH_HOST}", "${BOOT_FETCH_HOST}.cluster.local"]
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e-probe-bootfetch${FIXTURE_SUFFIX}/

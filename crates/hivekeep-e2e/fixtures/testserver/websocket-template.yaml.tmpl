@@ -1,0 +1,25 @@
+# The websocket fixture's ActorTemplate: a protojson-shaped
+# hivekeep.api.v1.ActorTemplate (not a Kubernetes object), created through the
+# Hivekeep API by the fixture deployer.
+
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: websocket
+workerSelector:
+  matchLabels:
+    workload: websocket${FIXTURE_SUFFIX}
+containers:
+- name: websocket
+  image: ${TESTSERVER_IMAGE}
+  args: ["websocket"]
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+    timeoutSeconds: 30
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e-websocket${FIXTURE_SUFFIX}/

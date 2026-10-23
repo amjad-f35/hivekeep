@@ -1,0 +1,30 @@
+# One replica forces both actors onto the same worker.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e${FIXTURE_SUFFIX}
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: probe-multiactor
+  namespace: hivekeep-e2e${FIXTURE_SUFFIX}
+  labels:
+    workload: probe-multiactor
+spec:
+  replicas: 1
+  workerImage: ${WORKER_IMAGE}
+  template:
+    # A worker's limits are its capacity, which placement weighs along with
+    # the actor count. Two actors' worth of CPU: the pair fits, a third does not.
+    resources:
+      limits:
+        cpu: "2"
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+${WORKERPOOL_RUNTIME}

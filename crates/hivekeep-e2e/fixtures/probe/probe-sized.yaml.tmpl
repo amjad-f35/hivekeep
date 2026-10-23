@@ -1,0 +1,25 @@
+# The k8s half of the sized probe fixture (see probe-sized-template.yaml.tmpl
+# for the ActorTemplate). Kept in its own namespace so it never collides with
+# the plain probe fixture.
+#
+# Rendered by the e2e harness, which fills the ${...} placeholders
+# for the sandbox class under test.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e${FIXTURE_SUFFIX}
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: probe-sized
+  namespace: hivekeep-e2e${FIXTURE_SUFFIX}
+  labels:
+    workload: probe-sized
+spec:
+  replicas: 3
+  workerImage: ${WORKER_IMAGE}
+${WORKERPOOL_RUNTIME}

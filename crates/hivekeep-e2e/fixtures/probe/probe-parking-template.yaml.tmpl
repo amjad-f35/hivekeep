@@ -1,0 +1,37 @@
+# Parking variant of the probe template: a protojson-shaped
+# hivekeep.api.v1.ActorTemplate whose limits are one whole worker's worth, so two of
+# its actors cannot share the fixture's single worker. Reuses the probe image
+# (it serves /whoami, which names the actor that answered).
+
+metadata:
+  hive: hivekeep-e2e${FIXTURE_SUFFIX}
+  name: probe-parking
+workerSelector:
+  matchLabels:
+    workload: probe-parking
+containers:
+- name: probe
+  image: ${PROBE_IMAGE}
+  volumeMounts:
+  - name: system-info
+    mountPath: /run/hivekeep
+  wakeupProbe:
+    httpGet:
+      path: /healthz
+      port: 80
+volumes:
+- name: system-info
+  systemInfo:
+    dataSources:
+    - actorMetadata:
+        items:
+        - field: ACTOR_METADATA_FIELD_NAME
+          path: actor-id
+# One actor's worth of CPU, matching the pool's per-worker limit in
+# probe-parking.yaml.tmpl: what makes the worker full after one placement.
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  storageLocation: gs://${BUCKET_NAME}/hivekeep-e2e${FIXTURE_SUFFIX}/

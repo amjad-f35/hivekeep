@@ -1,0 +1,36 @@
+# The k8s half of the parking probe fixture (see
+# probe-parking-template.yaml.tmpl for the ActorTemplate).
+#
+# Rendered by the e2e harness, which fills the ${...} placeholders
+# for the sandbox class under test.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-e2e${FIXTURE_SUFFIX}
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: probe-parking
+  namespace: hivekeep-e2e${FIXTURE_SUFFIX}
+  labels:
+    workload: probe-parking
+spec:
+  replicas: 1
+  workerImage: ${WORKER_IMAGE}
+  template:
+    # One worker holding one actor: the limits are what it advertises as
+    # capacity, and they are one actor's worth of CPU, so the suite's second
+    # actor has nowhere to go and its request parks. Keep the CPU in step with
+    # probe-parking-template.yaml.tmpl.
+    resources:
+      limits:
+        cpu: "1"
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 1Gi
+${WORKERPOOL_RUNTIME}
