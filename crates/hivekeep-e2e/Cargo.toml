@@ -11,6 +11,14 @@ publish.workspace = true
 name = "hivekeep_e2e"
 path = "src/lib.rs"
 
+[[bin]]
+name = "hivekeep-e2e-testserver"
+path = "src/bin/hivekeep-e2e-testserver.rs"
+
+[[bin]]
+name = "hivekeep-e2e-probe"
+path = "src/bin/hivekeep-e2e-probe.rs"
+
 [dependencies]
 hivekeep-telemetry = { workspace = true }
 hivekeep-core = { workspace = true }
