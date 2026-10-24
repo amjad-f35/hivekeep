@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hivekeep multiplex demo</title>
+<style>
+  :root {
+    --bg: #0f1218; --panel: #171c24; --sunk: #0c1016;
+    --line: #2e3440; --text: #e5e9f0; --muted: #9aa3b2; --dim: #6b7383;
+    --accent: #88c0d0; --ok: #a3e4b0; --ok-bg: #1d3a24;
+    --wait: #e2df8f; --wait-bg: #333614; --bad: #f29b9b; --bad-bg: #3d1e1e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    margin: 0; padding: 1.25em 16px;
+    background: var(--bg); color: var(--text); line-height: 1.45;
+  }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .5em; margin-bottom: .6em; }
+  h1 { font-size: 1.15em; margin: 0; color: var(--accent); }
+  #status { color: var(--dim); font-size: .85em; }
+  .lede { color: var(--muted); font-size: .85em; max-width: 76em; margin: 0 0 1em; }
+  .lede strong { color: var(--text); }
+  .grid { display: grid; gap: 1em; grid-template-columns: 1fr 1fr; margin-bottom: 1em; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .card, .pod-card, .tasks {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: .9em;
+  }
+  .pod-card { margin-bottom: 1em; }
+  .tasks { border-left: 3px solid var(--accent); margin-bottom: 1.1em; }
+  h2 { font-size: .8em; margin: 0 0 .35em; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; }
+  .note { color: var(--dim); font-size: .8em; margin: 0 0 .8em; }
+  .row { padding: .35em 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .top { display: flex; align-items: center; gap: .5em; }
+  .row .meta { color: var(--dim); font-size: .8em; margin-top: .1em; }
+  .badge {
+    display: inline-block; padding: .1em .55em; border-radius: 999px; font-size: .75em;
+    background: var(--sunk); color: var(--muted); border: 1px solid var(--line);
+  }
+  .badge.running { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+  .badge.pending { background: var(--wait-bg); color: var(--wait); border-color: transparent; }
+  .badge.failed  { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+  .pod-card h3 { font-size: .9em; margin: 0; color: var(--accent); }
+  .pod-card .pod-meta { color: var(--dim); font-size: .8em; margin: .25em 0 .5em; }
+  pre.logs {
+    background: var(--sunk); padding: .6em; border-radius: 4px; max-height: 14em;
+    overflow: auto; font-size: .78em; margin: 0; white-space: pre-wrap;
+  }
+  pre.logs:empty::before { content: "(no output yet)"; color: var(--dim); }
+  .empty { color: var(--dim); font-style: italic; }
+  .err { color: var(--bad); font-size: .85em; }
+  .tasks .head { display: flex; align-items: center; gap: 1em; flex-wrap: wrap; margin-bottom: .6em; }
+  .tasks h2 { margin: 0; }
+  #give-task-btn {
+    font: inherit; font-size: .92em; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: var(--bg); border: 0; border-radius: 4px; padding: .45em 1em;
+  }
+  #give-task-btn:disabled { opacity: .55; cursor: not-allowed; }
+  #task-feedback { color: var(--dim); font-size: .82em; }
+  .task-row { display: flex; align-items: baseline; gap: .55em; padding: .3em 0; border-bottom: 1px dashed var(--line); font-size: .88em; flex-wrap: wrap; }
+  .task-row:last-child { border-bottom: 0; }
+  .task-state {
+    min-width: 5.5em; text-align: center; padding: .1em .55em; border-radius: 999px;
+    font-size: .72em; text-transform: uppercase; letter-spacing: .08em;
+    background: var(--sunk); color: var(--muted); border: 1px solid var(--line);
+  }
+  .task-state.queued    { background: var(--wait-bg); color: var(--wait); border-color: transparent; }
+  .task-state.running   { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+  .task-state.completed { color: var(--dim); }
+  .task-agent { color: var(--accent); font-weight: 600; }
+  .task-text { flex: 1; min-width: 12em; }
+  .task-meta { color: var(--dim); font-size: .78em; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hivekeep multiplex demo</h1>
+  <div id="status">connecting…</div>
+</header>
+
+<p class="lede">
+  Three <strong>Claude Code agents</strong> run as Hivekeep Actors on a pool of only
+  <strong>two workers</strong>. Each agent loops: send a short prompt, print the reply,
+  then sit idle. Idle agents are <strong>suspended</strong> (their memory is
+  snapshotted and their worker released) so another agent can be resumed onto
+  that worker. This page polls every 2.5 seconds, so the rotation is visible as
+  it happens.
+</p>
+
+<div class="tasks">
+  <div class="head">
+    <h2>Tasks</h2>
+    <button id="give-task-btn" type="button">Give a task</button>
+    <span id="task-feedback"></span>
+  </div>
+  <p class="note">
+    Each click hands a random canned task to a random agent. A task is
+    <span class="task-state queued">queued</span> while its agent waits for a worker,
+    <span class="task-state running">running</span> while the agent holds one, and
+    <span class="task-state completed">completed</span> afterwards. The timing is
+    simulated by this dashboard; the agents themselves keep their own loop.
+  </p>
+  <div id="task-list"><div class="empty">nothing assigned yet</div></div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Workers</h2>
+    <p class="note">
+      The pool hosting the agents. With two workers and three agents, at most two
+      agents run at once and the third is suspended until a worker frees up.
+    </p>
+    <div id="pods" class="empty">loading…</div>
+  </div>
+  <div class="card">
+    <h2>Actors</h2>
+    <p class="note">
+      One Actor per agent, each built from its own ActorTemplate.
+      <code>Running</code> means it owns a worker now; <code>Suspended</code> means its
+      state is stored and it is waiting; <code>Resuming</code> and
+      <code>Suspending</code> are the moves in between.
+    </p>
+    <div id="actors" class="empty">loading…</div>
+  </div>
+</div>
+
+<h2>Worker logs (last 25 lines each)</h2>
+<p class="note">
+  One card per worker. As agents move between workers, the output in a single
+  card changes hands: one agent's <code>[agent:luna]</code> lines, then another's
+  <code>[agent:mars]</code> on the same worker.
+</p>
+<div id="pod-logs"></div>
+
+<script>
+const REFRESH_MS = 2500;
+
+function badgeFor(state) {
+  const s = (state || "").toLowerCase();
+  if (s.includes("running") || s === "ready") return "running";
+  if (s.includes("fail") || s.includes("error") || s.includes("crash")) return "failed";
+  return "pending";
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+async function getJSON(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  return r.json();
+}
+
+function ago(epochSec) {
+  if (!epochSec) return "";
+  const d = Math.max(0, Math.floor(Date.now() / 1000 - epochSec));
+  if (d < 5) return "just now";
+  if (d < 60) return d + "s ago";
+  return Math.floor(d / 60) + "m " + (d % 60) + "s ago";
+}
+
+function renderTasks(list) {
+  const el = document.getElementById("task-list");
+  if (!list || list.length === 0) {
+    el.innerHTML = '<div class="empty">nothing assigned yet</div>';
+    return;
+  }
+  el.innerHTML = list.slice(0, 8).map(a => {
+    const state = (a.state || "queued").toLowerCase();
+    let meta = "";
+    if (state === "queued") meta = "assigned " + ago(a.created_at);
+    else if (state === "running" && a.started_at) meta = "started " + ago(a.started_at);
+    else if (state === "completed" && a.completed_at) meta = "finished " + ago(a.completed_at);
+    return `<div class="task-row">
+      <span class="task-state ${esc(state)}">${esc(state)}</span>
+      <span class="task-agent">${esc(a.agent || "?")}</span>
+      <span class="task-text">${esc(a.task || "")}</span>
+      <span class="task-meta">${esc(meta)}</span>
+    </div>`;
+  }).join("");
+}
+
+async function refresh() {
+  const errors = [];
+  let pods = [], actors = [], assignments = [];
+  try { const r = await getJSON("/api/pods"); if (r.error) errors.push("workers: " + r.error); pods = r.pods || []; }
+  catch (e) { errors.push("workers: " + e.message); }
+  try { const r = await getJSON("/api/actors"); if (r.error) errors.push("actors: " + r.error); actors = r.actors || []; }
+  catch (e) { errors.push("actors: " + e.message); }
+  try { assignments = (await getJSON("/api/task-status")).assignments || []; }
+  catch (e) { errors.push("tasks: " + e.message); }
+  renderTasks(assignments);
+
+  const podsEl = document.getElementById("pods");
+  podsEl.className = pods.length ? "" : "empty";
+  podsEl.innerHTML = pods.length ? pods.map(p => `<div class="row">
+      <div class="top"><span class="badge ${badgeFor(p.phase)}">${esc(p.phase)}</span><span>${esc(p.name)}</span></div>
+      <div class="meta">pool=${esc(p.node)} hosting=${p.ready ? "yes" : "no"}</div>
+    </div>`).join("") : "no workers yet";
+
+  const actorsEl = document.getElementById("actors");
+  actorsEl.className = actors.length ? "" : "empty";
+  actorsEl.innerHTML = actors.length ? actors.map(a => `<div class="row">
+      <div class="top"><span class="badge ${badgeFor(a.phase)}">${esc(a.phase)}</span><span>${esc(a.kind)}/${esc(a.name)}</span></div>
+      ${a.message ? `<div class="meta">${esc(a.message)}</div>` : ""}
+    </div>`).join("") : "no actors in the demo hive";
+
+  const logs = document.getElementById("pod-logs");
+  const want = new Set(pods.map(p => "log-" + p.name));
+  for (const child of [...logs.children]) if (!want.has(child.id)) child.remove();
+  for (const p of pods) {
+    const id = "log-" + p.name;
+    let card = document.getElementById(id);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "pod-card";
+      card.id = id;
+      card.innerHTML = `<h3>${esc(p.name)}</h3><div class="pod-meta">pool=${esc(p.node)}</div><pre class="logs"></pre>`;
+      logs.appendChild(card);
+    }
+    const pre = card.querySelector("pre.logs");
+    try { pre.textContent = (await getJSON(`/api/logs/${encodeURIComponent(p.name)}`)).logs || ""; }
+    catch (e) { pre.textContent = `(could not fetch logs: ${e.message})`; }
+  }
+
+  const ts = new Date().toISOString().slice(11, 19) + "Z";
+  document.getElementById("status").innerHTML = errors.length
+    ? `<span class="err">${esc(errors.join(" · "))}</span> · ${ts}`
+    : `${pods.length} workers · ${actors.length} actors · ${ts}`;
+}
+
+async function giveTask() {
+  const btn = document.getElementById("give-task-btn");
+  const fb = document.getElementById("task-feedback");
+  btn.disabled = true;
+  fb.textContent = "assigning…";
+  try {
+    const r = await fetch("/api/give-task", { method: "POST", cache: "no-store" });
+    const body = await r.json();
+    if (!r.ok || body.error) {
+      fb.innerHTML = `<span class="err">${esc(body.error || ("HTTP " + r.status))}</span>`;
+    } else {
+      fb.innerHTML = `gave <span style="color:var(--accent)">${esc(body.agent)}</span>: ${esc(body.task)}`;
+      refresh();
+    }
+  } catch (e) {
+    fb.innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 400);
+  }
+}
+
+document.getElementById("give-task-btn").addEventListener("click", giveTask);
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>
