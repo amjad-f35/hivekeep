@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package hivekeep.demo.echo.v1;
+
+// Echo is a minimal service for checking that gRPC traffic crosses a network
+// path unharmed. The egress demo calls it through the gate's egress tunnel.
+//
+// Each streaming shape gets its own method because each breaks in its own
+// way: unary responses rely on trailers arriving right after the message,
+// server streams keep a connection busy across many frames, and bidirectional
+// streams carry frames both ways and then half-close one direction. Buffering,
+// HTTP/1.1 downgrades, serialised directions and idle-tunnel reaping each
+// show up in exactly one of them.
+service Echo {
+  // Echo answers with the message it received.
+  rpc Echo(EchoRequest) returns (EchoResponse) {}
+
+  // EchoStream answers with the message `count` times, numbering each
+  // response with its position.
+  rpc EchoStream(EchoStreamRequest) returns (stream EchoResponse) {}
+
+  // EchoBidi answers each request as soon as it arrives, numbered with its
+  // position. The client chooses how many to send and half-closes when done.
+  // The server must not wait for the request direction to finish first.
+  rpc EchoBidi(stream EchoRequest) returns (stream EchoResponse) {}
+}
+
+message EchoRequest {
+  // Text to send back.
+  string message = 1;
+}
+
+message EchoStreamRequest {
+  // Text to send back in every response.
+  string message = 1;
+
+  // Number of responses. Must be positive.
+  int32 count = 2;
+}
+
+message EchoResponse {
+  // The echoed text.
+  string message = 1;
+
+  // Zero-based position in the stream; always 0 for Echo.
+  int32 index = 2;
+}
