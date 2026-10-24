@@ -9,6 +9,7 @@
 pub mod proto;
 
 pub mod address;
+pub mod app;
 pub mod connect;
 pub mod dial;
 pub mod fetch;
@@ -20,5 +21,8 @@ pub mod mux;
 pub mod post;
 pub mod slow_headers;
 pub mod tls;
+pub mod websocket;
 pub mod wire;
+
+pub use app::{router, AppState, Delays};
 pub use fetch::{Fetch, Fetched, HttpFetcher, Outbound};
