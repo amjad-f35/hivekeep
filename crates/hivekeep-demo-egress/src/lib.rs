@@ -9,8 +9,16 @@
 pub mod proto;
 
 pub mod address;
+pub mod connect;
 pub mod dial;
+pub mod fetch;
+pub mod grpc;
 pub mod grpc_code;
 pub mod http1;
 pub mod limits;
+pub mod mux;
+pub mod post;
+pub mod slow_headers;
 pub mod tls;
+pub mod wire;
+pub use fetch::{Fetch, Fetched, HttpFetcher, Outbound};
