@@ -18,4 +18,6 @@ pub mod api_client;
 #[cfg(test)]
 pub(crate) mod testutil;
 
+pub mod glutton;
+
 pub mod egress;
