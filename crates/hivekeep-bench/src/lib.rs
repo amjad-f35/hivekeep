@@ -20,6 +20,7 @@ pub mod api_client;
 pub(crate) mod testutil;
 
 pub mod glutton;
+pub mod loadgen;
 
 pub mod egress;
 pub mod isolate;
