@@ -14,6 +14,26 @@ path = "src/lib.rs"
 [features]
 default = []
 
+[[bin]]
+name = "glutton"
+path = "src/bin/glutton.rs"
+
+[[bin]]
+name = "locust-worker"
+path = "src/bin/locust_worker.rs"
+
+[[bin]]
+name = "egress-bench"
+path = "src/bin/egress_bench.rs"
+
+[[bin]]
+name = "fake-keeper"
+path = "src/bin/fake_keeper.rs"
+
+[[bin]]
+name = "fake-workersync"
+path = "src/bin/fake_workersync.rs"
+
 [dependencies]
 hivekeep-telemetry = { workspace = true }
 hivekeep-core = { workspace = true }
