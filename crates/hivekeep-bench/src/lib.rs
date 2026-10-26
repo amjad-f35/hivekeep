@@ -11,6 +11,7 @@
 
 pub mod boot;
 pub mod pb;
+pub mod tls;
 pub mod wire;
 
 pub mod api_client;
@@ -21,3 +22,4 @@ pub(crate) mod testutil;
 pub mod glutton;
 
 pub mod egress;
+pub mod isolate;
