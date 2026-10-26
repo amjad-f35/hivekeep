@@ -1,0 +1,741 @@
+# The benchmark list the orchestrator runs, one entry at a time. Hivekeep and
+# the benchmark workloads are installed before each entry and removed after
+# it, so no entry sees another's state.
+#
+# Fields every entry may set:
+#
+#   type           Required. The runner: "locust" or "nighthawk-ingress";
+#                  each type's own fields are described below.
+#   targetCluster  Required. Names a settings file in
+#                  /etc/orchestrator/target-clusters/ (targetCluster: dev
+#                  reads dev.sh). The orchestrator installs it as the clone's
+#                  .hivekeep-dev-env.sh for the entry and removes it after,
+#                  so entries can target different clusters and projects
+#                  within one scheduled run.
+#   sandboxClass   Optional, default "gvisor". Sandbox runtime of the
+#                  benchmark WorkerPool: "gvisor" or "microvm".
+#   workerCount    Optional, default 1. WorkerPool replicas for this entry;
+#                  every entry redeploys the workloads, so each picks its own
+#                  scale.
+#   actorMemory    Optional, default "256Mi". Memory limit of the benchmark
+#                  ActorTemplates; raise it for suites that fill glutton's
+#                  RAM.
+#   actorCPU       Optional, default "1". CPU limit of the benchmark
+#                  ActorTemplates. The scheduler books it against each
+#                  worker's CPU, so it caps how many Actors a worker hosts at
+#                  once; lower it for dense suites.
+#   workerMemory   Optional, default unset (worker pods have no requests or
+#                  limits). Memory request and limit of each worker pod. Use
+#                  it to fix how many workers share a node: one per node needs
+#                  more than half the node's allocatable memory. The limit,
+#                  less what the worker keeps for itself, is the Actor
+#                  capacity it reports.
+#   workerWaitTimeout
+#                  Optional, default 300 (workloads/deploy.sh's). Whole
+#                  seconds to wait for the worker pods and templates; raise it
+#                  for large fleets whose image pulls or scheduling take
+#                  longer.
+#   installArgs    Optional. Strings appended as they are to
+#                  `scripts/install/hivekeep.sh deploy hivekeep-system`, e.g.
+#                  ["--cordon-system-infra-components"]. The install needs a
+#                  credential provider: give one here as a single string,
+#                  '--credential-provider={"name":"k8s.io"}' (no shell quoting,
+#                  the arguments bypass the shell), or as
+#                  HK_CREDENTIAL_PROVIDER in the target cluster's settings.
+#   isolate        Optional. Installs Hivekeep with the fake data plane
+#                  (--fake-data-plane): no worker pods; the fake keeper takes
+#                  the keeper's place on every keeper node and answers each
+#                  lifecycle call after a delay, and fake-workersync serves the
+#                  pool with workerCount fake Workers reporting the capacity a
+#                  real worker would. hivekeep-api and Postgres can then be
+#                  pushed past what real nodes can restore. The keys tune the
+#                  fake keeper through workloads/deploy.sh --fake-keeper-env:
+#                  delay (default 0s); delayRun, delayRestore,
+#                  delayCheckpoint, delayPromoteSnapshot and delayTerminate,
+#                  each overriding delay for one call; and
+#                  mintActorCertificate (default true). A bare `isolate:`
+#                  takes every default. Actors do not exist on the fake data
+#                  plane, so the entry's load class must send them no
+#                  requests.
+#
+# ---- type: locust -----------------------------------------------------------
+#
+# Runs `runner.py -f <file> -t <duration> -u <users> --name <name>` in a Job,
+# with --tag set to the commit under test and --dest from the orchestrator.
+# `file`, `duration` and `users` are required. `flags` (optional) is a list of
+# strings appended to runner.py's arguments; runner.py hands what it does not
+# know to locust and the load generator.
+#
+# `runnerCpu` (default "500m") and `runnerMemory` (default "512Mi") are the
+# runner pod's requests, with no limits, so it lands on a node with that much
+# free and may burst past it. Raise them for classes run at thousands of
+# users: agentsession keeps one task per session and a large ingest payload
+# per call in flight, so 1000+ sessions want about 4 CPUs and 8Gi.
+#
+# `file` is one path or a comma-separated list that locust reads as one test:
+# the test first, then any load shapes (locust/shapes/). A shape changes the
+# load while the run goes on.
+#
+# `--ladder users:duration[:trace_probability],...` with
+# /app/shapes/ladder_shape.py in `file` makes a sweep a single run. The shape
+# owns the load and the end of the run, so locust ignores `-t` and `users` is
+# only the count before the first step. Keep `duration` at the steps' total:
+# the orchestrator sizes the Job timeout from it.
+#
+# A step that names a trace probability changes the sampling rate when it
+# starts, and the rate holds until another step changes it;
+# `--trace-probability` in `flags` is the rate before the first such step.
+#
+# A step may end in `@target_rps` (e.g. `200:3m@4000`), capping the whole
+# load generator's requests per second from the step's start; 0 lifts the
+# cap. Self-pacing classes (resumepaused) honor it. Keep `users` at or above
+# the rate times one iteration's p99 in seconds, or the step falls short; a
+# resumepaused iteration is a resume plus a pause.
+#
+# `controlPlane:` (optional) shapes the control plane for a capacity run;
+# pre_test applies it after the install. Its required `apiServer:` section
+# sizes hivekeep-api:
+#   cpu            Required. CPU request and limit of each replica (e.g. 2
+#                  or "1500m").
+#   memory         Optional. Memory request and limit of each replica.
+#   replicas       Optional.
+#   poolMaxConns   Optional. Postgres pool size per replica, set through the
+#                  API's env ConfigMap.
+# An optional knob left out keeps the installed value. The optional
+# `postgres:` section:
+#   stats          Optional, default true. Loads pg_stat_statements and adds
+#                  a postgres_exporter sidecar.
+#   args           Optional. Postgres settings as name=value (e.g.
+#                  commit_delay=100), applied in the restart stats makes.
+# Placement stays the install's: a capacity run sets
+# --cordon-system-infra-components in installArgs, which keeps hivekeep-api
+# and Postgres on the tainted pools that flag expects, off the load's nodes.
+#
+# ---- type: nighthawk-ingress ------------------------------------------------
+#
+# The adaptive gate router capacity benchmark. `duration` is only the Job
+# wait budget; the knobs live in a `nighthawk-ingress:` block, listed in the
+# "Configuration knobs" table of nighthawk-ingress/README.md. `workerCount` is
+# required: the benchmark warms one Actor per worker, so it is also the Actor
+# fleet size.
+
+tests:
+  - name: glutton_baseline_1_user
+    type: locust
+    description: "Glutton baseline: 1 concurrent user for 1 minute"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--lifecycle-mode"
+      - "sync"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_baseline_1_user_pause
+    type: locust
+    description: "Glutton baseline (pause): 1 concurrent user for 1 minute"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--lifecycle-mode"
+      - "async"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  # Large-memory variants of the 1-user baseline: before the first suspend
+  # the GluttonUser fills the Actor's RAM to --mem-target through glutton's
+  # WriteRAM call, so every suspend/resume cycle runs against a full-sized
+  # Actor. actorMemory is the target plus headroom for glutton and the
+  # guest. The golden snapshot and the cold boot stay small; the working set
+  # exists from the first fill on. --mem-churn rewrites 64Mi per cycle
+  # through a moving window, so successive suspends snapshot changed memory
+  # and the dirty window travels across the array. --mem-read touches every
+  # page of the working set right after each resume, so under a
+  # demand-paged restore the GluttonReadRAM row is the cost of paging the
+  # previous snapshot back in.
+  - name: glutton_mem_1gi_gvisor
+    type: locust
+    description: "Large-memory: 1Gi resident working set, gvisor"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    actorMemory: "1536Mi"
+    flags:
+      - "--lifecycle-mode"
+      - "sync"
+      - "--mem-target"
+      - "1Gi"
+      - "--mem-churn"
+      - "64Mi"
+      - "--mem-read"
+      - "all"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_mem_1gi_gvisor_pause
+    type: locust
+    description: "Large-memory (pause): 1Gi resident working set, gvisor"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    actorMemory: "1536Mi"
+    flags:
+      - "--lifecycle-mode"
+      - "async"
+      - "--mem-target"
+      - "1Gi"
+      - "--mem-churn"
+      - "64Mi"
+      - "--mem-read"
+      - "all"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_mem_1gi_microvm
+    type: locust
+    description: "Large-memory: 1Gi resident working set, microvm"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    sandboxClass: microvm
+    actorMemory: "1536Mi"
+    flags:
+      - "--mem-target"
+      - "1Gi"
+      - "--mem-churn"
+      - "64Mi"
+      - "--mem-read"
+      - "all"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_mem_2gi_gvisor
+    type: locust
+    description: "Large-memory: 2Gi resident working set, gvisor"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    actorMemory: "2560Mi"
+    flags:
+      - "--lifecycle-mode"
+      - "sync"
+      - "--mem-target"
+      - "2Gi"
+      - "--mem-churn"
+      - "64Mi"
+      - "--mem-read"
+      - "all"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_mem_2gi_gvisor_pause
+    type: locust
+    description: "Large-memory (pause): 2Gi resident working set, gvisor"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    actorMemory: "2560Mi"
+    flags:
+      - "--lifecycle-mode"
+      - "async"
+      - "--mem-target"
+      - "2Gi"
+      - "--mem-churn"
+      - "64Mi"
+      - "--mem-read"
+      - "all"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_mem_2gi_microvm
+    type: locust
+    description: "Large-memory: 2Gi resident working set, microvm"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    sandboxClass: microvm
+    actorMemory: "2560Mi"
+    flags:
+      - "--mem-target"
+      - "2Gi"
+      - "--mem-churn"
+      - "64Mi"
+      - "--mem-read"
+      - "all"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_baseline_5_users
+    type: locust
+    description: "Glutton baseline: 5 concurrent users for 1 minute"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 5
+    workerCount: 5
+    flags:
+      - "--lifecycle-mode"
+      - "sync"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_baseline_5_users_pause
+    type: locust
+    description: "Glutton baseline (pause): 5 concurrent users for 1 minute"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 5
+    workerCount: 5
+    flags:
+      - "--lifecycle-mode"
+      - "async"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_baseline_10_users
+    type: locust
+    description: "Glutton baseline: 10 concurrent users for 1 minute (doubles the number of workers/node)"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 10
+    workerCount: 10
+    flags:
+      - "--lifecycle-mode"
+      - "sync"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_baseline_10_users_pause
+    type: locust
+    description: "Glutton baseline (pause): 10 concurrent users for 1 minute"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 1m
+    users: 10
+    workerCount: 10
+    flags:
+      - "--lifecycle-mode"
+      - "async"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: glutton_oversubscribe_15_users
+    type: locust
+    description: "Glutton baseline: 15 concurrent users for 2 minutes (50% oversubscribed)"
+    targetCluster: dev
+    file: /app/tests/glutton.py
+    duration: 2m
+    users: 15
+    workerCount: 10
+    flags:
+      - "--min-wait-time"
+      - "0.5"
+      - "--max-wait-time"
+      - "1.0"
+  # The observability ladder. Every step runs the glutton class on the Rust
+  # load generator, whose latency stays out of the measurement even at
+  # high user counts.
+  - name: observability_s0_idle_floor
+    type: locust
+    description: "Observability S0: the telemetry of an idle control plane, 5 minutes"
+    targetCluster: dev
+    file: /app/tests/glutton.py,/app/shapes/ladder_shape.py
+    duration: 5m
+    users: 0
+    workerCount: 10
+    flags:
+      # The floor sends no request, so locust writes no measurement row: the
+      # result of this run is the telemetry counts alone.
+      - "--allow-empty-stats"
+      - "--ladder"
+      - "0:5m"
+      - "--trace-probability"
+      - "0.1"
+  - name: observability_s1_user_sweep
+    type: locust
+    description: "Observability S1: user sweep 5 -> 10 -> 15, 3 minutes for each step"
+    targetCluster: dev
+    file: /app/tests/glutton.py,/app/shapes/ladder_shape.py
+    duration: 9m
+    users: 5
+    workerCount: 10
+    flags:
+      - "--ladder"
+      - "5:3m,10:3m,15:3m"
+      - "--trace-probability"
+      - "0.1"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: observability_s2_sample_rate_sweep
+    type: locust
+    description: "Observability S2: sample rate 0 -> 0.1 -> 1.0 at 10 users, 3 minutes for each step"
+    targetCluster: dev
+    file: /app/tests/glutton.py,/app/shapes/ladder_shape.py
+    duration: 9m
+    users: 10
+    workerCount: 10
+    flags:
+      - "--ladder"
+      - "10:3m:0,10:3m:0.1,10:3m:1.0"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: observability_s3_soak
+    type: locust
+    description: "Observability S3: 12 users for 10 minutes, 80% of the S1 maximum"
+    targetCluster: dev
+    file: /app/tests/glutton.py,/app/shapes/ladder_shape.py
+    duration: 10m
+    users: 12
+    workerCount: 10
+    flags:
+      - "--ladder"
+      - "12:10m"
+      - "--trace-probability"
+      - "0.1"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_data_baseline
+    type: locust
+    description: "DurDir data baseline: 1 concurrent user, 8 MiB file, explicit resume"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--lifecycle-mode"
+      - "sync"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-file-size-bytes"
+      - "8388608"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_data_pause
+    type: locust
+    description: "DurDir data baseline (pause): 1 concurrent user, 8 MiB file, pause lifecycle"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--lifecycle-mode"
+      - "async"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-file-size-bytes"
+      - "8388608"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_full_baseline
+    type: locust
+    description: "DurDir full baseline: 1 concurrent user, 8 MiB file, full memory restore comparison"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-full"
+      - "--lifecycle-mode"
+      - "sync"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-file-size-bytes"
+      - "8388608"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_full_pause
+    type: locust
+    description: "DurDir full baseline (pause): 1 concurrent user, 8 MiB file, full memory restore comparison"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-full"
+      - "--lifecycle-mode"
+      - "async"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-file-size-bytes"
+      - "8388608"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_implicit_resume
+    type: locust
+    description: "DurDir implicit resume: 1 concurrent user, 8 MiB file, traffic-triggered resume"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--resume-mode"
+      - "implicit"
+      - "--durdir-file-size-bytes"
+      - "8388608"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_size_5mb
+    type: locust
+    description: "DurDir file size sweep (5 MiB): 1 concurrent user, digest read mode"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-read-mode"
+      - "digest"
+      - "--durdir-file-size-bytes"
+      - "5242880"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_size_10mb
+    type: locust
+    description: "DurDir file size sweep (10 MiB): 1 concurrent user, digest read mode"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-read-mode"
+      - "digest"
+      - "--durdir-file-size-bytes"
+      - "10485760"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_size_64mb
+    type: locust
+    description: "DurDir file size sweep (64 MiB): 1 concurrent user, digest read mode"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--lifecycle-mode"
+      - "sync"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-read-mode"
+      - "digest"
+      - "--durdir-file-size-bytes"
+      - "67108864"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: durdir_size_64mb_pause
+    type: locust
+    description: "DurDir file size sweep (64 MiB, pause): 1 concurrent user, digest read mode"
+    targetCluster: dev
+    file: /app/tests/durdir.py
+    duration: 1m
+    users: 1
+    workerCount: 1
+    flags:
+      - "--durdir-template"
+      - "glutton-durdir-data"
+      - "--lifecycle-mode"
+      - "async"
+      - "--resume-mode"
+      - "explicit"
+      - "--durdir-read-mode"
+      - "digest"
+      - "--durdir-file-size-bytes"
+      - "67108864"
+      - "--min-wait-time"
+      - "1.0"
+      - "--max-wait-time"
+      - "1.0"
+  - name: spawn_smoke_10_actors
+    type: locust
+    description: "Spawn benchmark smoke: 10 actors created with concurrency 2"
+    targetCluster: dev
+    file: /app/tests/spawn.py,/app/shapes/spawn_shape.py
+    duration: 5m
+    users: 1
+    workerCount: 10
+    flags:
+      - "--total-actors"
+      - "10"
+      - "--spawn-concurrency"
+      - "2"
+      - "--actor-deadline"
+      - "120"
+  - name: ingress_routercap_envoy_2cpu
+    description: "Router capacity: Nighthawk adaptive max-RPS search under a 25ms tail-latency SLO, Envoy at 2 CPUs"
+    type: nighthawk-ingress
+    targetCluster: dev
+    duration: 30m
+    workerCount: 50
+    nighthawk-ingress:
+      envoyCpu: 2
+      tailLatencySloMs: 25
+  - name: ingress_routercap_envoy_4cpu
+    description: "Router capacity: Nighthawk adaptive max-RPS search under a 25ms tail-latency SLO, Envoy at 4 CPUs"
+    type: nighthawk-ingress
+    targetCluster: dev
+    duration: 30m
+    workerCount: 50
+    nighthawk-ingress:
+      envoyCpu: 4
+      tailLatencySloMs: 25
+  - name: ingress_routercap_envoy_8cpu
+    description: "Router capacity: Nighthawk adaptive max-RPS search under a 25ms tail-latency SLO, Envoy at 8 CPUs"
+    type: nighthawk-ingress
+    targetCluster: dev
+    duration: 30m
+    workerCount: 50
+    nighthawk-ingress:
+      envoyCpu: 8
+      tailLatencySloMs: 25
+  - name: ingress_routercap_envoy_16cpu
+    description: "Router capacity: Nighthawk adaptive max-RPS search under a 25ms tail-latency SLO, Envoy at 16 CPUs"
+    type: nighthawk-ingress
+    targetCluster: dev
+    duration: 30m
+    workerCount: 50
+    nighthawk-ingress:
+      envoyCpu: 16
+      tailLatencySloMs: 25
+  # The cold resume ceiling of hivekeep-api and Postgres, on the fake data
+  # plane. Each user owns one Actor: its first iteration creates it and
+  # leaves it cold, in the step that adds the user, and every later
+  # iteration resumes and pauses it again. The fake keeper answers every
+  # call, restore and checkpoint alike, after 150 ms on every keeper node, so
+  # a cycle spends 300 ms in the data plane, plus the Actor certificate mint
+  # on each restore. The 200 fake Workers take 1000 Actors each, and at 10m
+  # CPU an Actor books almost nothing of a Worker's CPU (a fake Worker
+  # reports its node's allocatable), so placement never binds. The
+  # resumepaused class sends the Actors no requests, which the fake data
+  # plane requires.
+  - name: api_cold_resume_pause_fake_2cpu
+    type: locust
+    description: "hivekeep-api cold resume on the fake data plane, hivekeep-api at 2 CPUs: rate ladder 100-1500 cold resumes/s"
+    targetCluster: dev
+    file: /app/tests/resumepaused.py,/app/shapes/ladder_shape.py
+    duration: 23m
+    users: 1000
+    workerCount: 200
+    actorCPU: "10m"
+    runnerCpu: "8"
+    runnerMemory: "2Gi"
+    isolate:
+      delay: 150ms
+    installArgs:
+      - "--cordon-system-infra-components"
+    controlPlane:
+      apiServer:
+        replicas: 1
+        cpu: 2
+        memory: 4Gi
+        poolMaxConns: 64
+    flags:
+      - "--ladder-spawn-rate"
+      - "1000"
+      - "--ladder"
+      - "1000:3m@100,1000:3m@200,1000:3m@400,1000:3m@600,1000:3m@800,1000:3m@1000,1000:3m@1500"
+  # A quick check of the cold resume setup above: the same fake data plane
+  # and API shape far below the ceiling, to try a change end to end in
+  # minutes. 50 users at about 300 ms per cycle can make some 150 cold
+  # resumes/s, so both steps reach their rate.
+  - name: api_cold_resume_pause_fake_smoke
+    type: locust
+    description: "hivekeep-api cold resume smoke on the fake data plane, hivekeep-api at 2 CPUs: 50 actors, 20 then 50 cold resumes/s"
+    targetCluster: dev
+    file: /app/tests/resumepaused.py,/app/shapes/ladder_shape.py
+    duration: 6m
+    users: 50
+    workerCount: 2
+    actorCPU: "10m"
+    isolate:
+      delay: 150ms
+    installArgs:
+      - "--cordon-system-infra-components"
+    controlPlane:
+      apiServer:
+        replicas: 1
+        cpu: 2
+        memory: 4Gi
+        poolMaxConns: 64
+    flags:
+      - "--ladder-spawn-rate"
+      - "50"
+      - "--ladder"
+      - "50:2m@20,50:2m@50"

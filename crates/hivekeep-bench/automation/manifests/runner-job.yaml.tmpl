@@ -1,0 +1,200 @@
+# The runner Job of a `type: locust` entry, with the namespace, identity and
+# read access it needs. orchestrator.py fills ${JOB_NAME} ${IMAGE}
+# ${TEST_FILE} ${DURATION} ${USERS} ${TAG} ${NAME} ${DEST} ${RUNNER_CPU}
+# ${RUNNER_MEMORY} and appends the entry's flags to the runner's args.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: benchmarking
+  labels:
+    # hivekeep-system admits API clients only from namespaces with this label.
+    hivekeep.io/api-access: "true"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: benchmark-runner
+  namespace: benchmarking
+---
+# The runner discovers keeper endpoints the way the gate router does.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: benchmark-runner-endpointslices
+  namespace: hivekeep-system
+subjects:
+- kind: ServiceAccount
+  name: benchmark-runner
+  namespace: benchmarking
+roleRef:
+  kind: Role
+  name: keeper-endpointslices
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: benchmark-runner-hardware-discovery
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  # The runner reads whole collections only.
+  verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: benchmark-runner-hardware-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: benchmark-runner-hardware-discovery
+subjects:
+- kind: ServiceAccount
+  name: benchmark-runner
+  namespace: benchmarking
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: benchmark-runner-worker-pods
+  namespace: benchmark-workloads
+rules:
+# get and list: after a run the runner reads the worker pod logs for the
+# suspend/resume phase breakdown.
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+# Worker pod events, for the OOM evictions the run reports.
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: benchmark-runner-worker-pods
+  namespace: benchmark-workloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: benchmark-runner-worker-pods
+subjects:
+- kind: ServiceAccount
+  name: benchmark-runner
+  namespace: benchmarking
+---
+# The keeper pod logs hold the other half of the phase breakdown.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: benchmark-runner-keeper-logs
+  namespace: hivekeep-system
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: benchmark-runner-keeper-logs
+  namespace: hivekeep-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: benchmark-runner-keeper-logs
+subjects:
+- kind: ServiceAccount
+  name: benchmark-runner
+  namespace: benchmarking
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${JOB_NAME}
+  namespace: benchmarking
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: hivekeep-benchmark-runner
+        test-name: ${NAME}
+        tag: ${TAG}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: benchmark-runner
+      # Lets the runner use a node pool kept for load generators, tainted
+      # hivekeep.io/benchmarking=true:NoSchedule.
+      tolerations:
+      - key: hivekeep.io/benchmarking
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      containers:
+      - name: runner
+        image: ${IMAGE}
+        imagePullPolicy: IfNotPresent
+        command:
+        - "python3"
+        - "/app/runner.py"
+        args:
+        - "-f"
+        - "${TEST_FILE}"
+        - "-t"
+        - "${DURATION}"
+        - "-u"
+        - "${USERS}"
+        - "--tag"
+        - "${TAG}"
+        - "--name"
+        - "${NAME}"
+        - "--dest"
+        - "${DEST}"
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://opentelemetry-collector.otel-system.svc.cluster.local:4317
+        # The load generator worker's /metrics, for Prometheus to scrape.
+        ports:
+        - name: loadgen-metrics
+          containerPort: 8001
+        volumeMounts:
+        - name: servicedns
+          mountPath: /run/servicedns.podcert.hivekeep.io
+          readOnly: true
+        - name: podidentity
+          mountPath: /run/podidentity.podcert.hivekeep.io
+          readOnly: true
+        # Requests only: the runner has a load-generator node to itself, and
+        # a limit would turn a short allocation spike at high user counts
+        # into an OOM kill mid-run.
+        resources:
+          requests:
+            cpu: "${RUNNER_CPU}"
+            memory: "${RUNNER_MEMORY}"
+      volumes:
+      - name: servicedns
+        projected:
+          sources:
+          - clusterTrustBundle:
+              signerName: servicedns.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: trust-bundle.pem
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem

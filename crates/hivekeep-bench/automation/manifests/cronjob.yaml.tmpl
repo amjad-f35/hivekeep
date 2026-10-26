@@ -1,0 +1,84 @@
+# The scheduled benchmark run on the orchestration cluster. setup.sh renders
+# this into scratch/cronjob.yaml; fill in the --repo / --branch / --dest
+# arguments before applying it.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-benchmark
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hivekeep-benchmark-orchestrator
+  namespace: hivekeep-benchmark
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hivekeep-benchmark
+  namespace: hivekeep-benchmark
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: hivekeep-benchmark-orchestrator
+          initContainers:
+          # A Docker daemon beside the orchestrator, for the image builds.
+          - name: dind
+            image: docker:dind
+            restartPolicy: Always
+            securityContext:
+              privileged: true
+            args:
+            - --registry-mirror=https://mirror.gcr.io
+            env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+            volumeMounts:
+            - name: docker-storage
+              mountPath: /var/lib/docker
+          containers:
+          - name: orchestrator
+            image: ${ORCHESTRATOR_IMAGE}
+            imagePullPolicy: IfNotPresent
+            args:
+            - "--repo"
+            - "<FILL IN: git URL of the repository to benchmark>"
+            - "--branch"
+            - "<FILL IN: main>"
+            - "--dest"
+            - "<FILL IN: gs://your-bucket/benchmark-results>"
+            env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+            volumeMounts:
+            # tests.yaml by subPath, so the target-clusters ConfigMap can own
+            # the directory beside it.
+            - name: tests-config
+              mountPath: /etc/orchestrator/tests.yaml
+              subPath: tests.yaml
+              readOnly: true
+            - name: target-clusters
+              mountPath: /etc/orchestrator/target-clusters
+              readOnly: true
+            resources:
+              requests:
+                cpu: "1"
+                memory: "2Gi"
+          volumes:
+          - name: docker-storage
+            emptyDir: {}
+          - name: tests-config
+            configMap:
+              name: hivekeep-benchmark-tests
+          - name: target-clusters
+            configMap:
+              name: hivekeep-benchmark-target-clusters
