@@ -1,0 +1,441 @@
+# Optional Prometheus + Grafana stack for the benchmark namespace.
+#
+# The locust web UI already charts request rates and latencies; this stack is
+# for longer runs and for correlating load with container memory/CPU. Apply it
+# with
+#
+#   kubectl apply -f crates/hivekeep-bench/monitoring.yaml
+#
+# or pass --with-monitoring to scripts/benchmarking/deploy_locust.sh, then
+#
+#   kubectl -n benchmarking port-forward svc/grafana 3000:3000
+#
+# and open http://localhost:3000 (anonymous access, no login).
+#
+# What is scraped:
+#   - pods in `benchmarking` annotated prometheus.io/scrape=true (the locust
+#     pod annotates the locust-worker's port 8001)
+#   - the locust master's Python exporter on port 8000
+#   - automation runner Jobs (app=hivekeep-benchmark-runner) on port 8001
+#   - the postgres-exporter sidecar that automation adds in hivekeep-system
+#     (port 9187), when a test enables it
+#   - kubelet cAdvisor for container memory, CPU, network, disk and PSI
+# glutton's own counters live inside the Actor sandboxes and are not reachable
+# from here; send them through --otlp-endpoint instead.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: benchmarking
+  labels:
+    # hivekeep-system's NetworkPolicies admit API clients only from
+    # namespaces carrying this label.
+    hivekeep.io/api-access: "true"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: benchmarking
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hivekeep-benchmarking-prometheus
+rules:
+  # Pod discovery in benchmarking and hivekeep-system, plus node discovery
+  # and the kubelet proxy for cAdvisor. Nodes are cluster-scoped, so this has
+  # to be a ClusterRole.
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints", "nodes", "nodes/proxy", "nodes/metrics"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hivekeep-benchmarking-prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hivekeep-benchmarking-prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: benchmarking
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: benchmarking
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+    scrape_configs:
+      # Opt-in by annotation: prometheus.io/scrape, prometheus.io/port and
+      # optionally prometheus.io/path.
+      - job_name: annotated-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [benchmarking]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # The annotation can name a single port per pod. The locust pod uses it
+      # for the worker (8001), so the master's exporter (8000) gets its own
+      # job, as do the automation runner Jobs, which carry no annotation.
+      - job_name: locust-master
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [benchmarking]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: locust;8000
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      - job_name: benchmark-runner
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [benchmarking]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: hivekeep-benchmark-runner;8001
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # Present only while an automation test with a controlPlane block runs
+      # (see automation/controlplane.py).
+      - job_name: postgres-exporter
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [hivekeep-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: postgres;9187
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # Container usage straight from each kubelet's cAdvisor endpoint, via
+      # the API server proxy. metrics-server averages over its window and
+      # hides short peaks; the working set here is what the OOM killer sees.
+      - job_name: kubernetes-cadvisor
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+        metric_relabel_configs:
+          # The root cgroup (id="/") has an empty container label; name it
+          # "node" so host-wide pressure survives the drop below.
+          - source_labels: [id]
+            regex: ^/$
+            target_label: container
+            replacement: node
+          # cAdvisor is very chatty; keep only what the benchmarks read.
+          - source_labels: [__name__]
+            action: keep
+            regex: container_((.*pressure.*)|network_(receive|transmit)_bytes_total|fs_(reads|writes)_bytes_total|memory_rss|memory_working_set_bytes|cpu_usage_seconds_total|cpu_cfs_.*|spec_memory_limit_bytes|oom_events_total)
+          # The pod-level rollup (empty container label) would double-count
+          # memory and CPU next to the per-container series. Other metrics
+          # keep it, since network and PSI are only reported per pod.
+          - source_labels: [__name__, container]
+            action: drop
+            regex: container_(memory_working_set_bytes|cpu_usage_seconds_total);$
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: benchmarking
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      # Lets it land on the dedicated load-generator pool when there is one.
+      tolerations:
+        - key: hivekeep.io/benchmarking
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.53.2
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus/
+            - --storage.tsdb.retention.time=7d
+          ports:
+            - name: http
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/
+            - name: data
+              mountPath: /prometheus/
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: benchmarking
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: benchmarking
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        url: http://prometheus:9090
+        access: proxy
+        isDefault: true
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: hivekeep-bench
+        orgId: 1
+        folder: Hivekeep benchmarks
+        type: file
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: benchmarking
+data:
+  # One row per request name (the `name` label the load generator records:
+  # GetActor, ResumeActor, SuspendActor, ...), repeated over the $name
+  # variable, plus active users and the memory of the benchmark containers.
+  hivekeep-bench.json: |
+    {
+      "uid": "hivekeep-bench-load",
+      "title": "Hivekeep benchmark load",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "10s",
+      "time": { "from": "now-30m", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "user_class",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": "label_values(locust_requests_total, user_class)",
+            "includeAll": true,
+            "multi": true,
+            "current": { "text": "All", "value": "$__all" },
+            "refresh": 2
+          },
+          {
+            "name": "name",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": "label_values(locust_requests_total{user_class=~\"$user_class\"}, name)",
+            "includeAll": true,
+            "multi": true,
+            "current": { "text": "All", "value": "$__all" },
+            "refresh": 2
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Active users",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            { "refId": "A", "expr": "sum(locust_users{user_class=~\"$user_class\"}) by (pod, user_class)", "legendFormat": "{{pod}} {{user_class}}" }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Benchmark container working set",
+          "type": "timeseries",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "bytes" } },
+          "targets": [
+            { "refId": "A", "expr": "sum(container_memory_working_set_bytes{namespace=~\"benchmarking|hivekeep-system\"}) by (namespace, pod, container)", "legendFormat": "{{namespace}}/{{pod}}/{{container}}" }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "$name rate",
+          "type": "timeseries",
+          "repeat": "name",
+          "repeatDirection": "h",
+          "maxPerRow": 3,
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "reqps" } },
+          "targets": [
+            { "refId": "A", "expr": "sum(rate(locust_requests_total{name=\"$name\", user_class=~\"$user_class\"}[1m])) by (status)", "legendFormat": "{{status}}" }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "$name latency (client)",
+          "type": "timeseries",
+          "repeat": "name",
+          "repeatDirection": "h",
+          "maxPerRow": 3,
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" } },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(locust_request_duration_milliseconds_bucket{name=\"$name\", user_class=~\"$user_class\"}[1m])) by (le))", "legendFormat": "p50" },
+            { "refId": "B", "expr": "histogram_quantile(0.99, sum(rate(locust_request_duration_milliseconds_bucket{name=\"$name\", user_class=~\"$user_class\"}[1m])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "$name latency (server-reported)",
+          "type": "timeseries",
+          "repeat": "name",
+          "repeatDirection": "h",
+          "maxPerRow": 3,
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "ms" } },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.99, sum(rate(locust_server_duration_milliseconds_bucket{name=\"$name\", user_class=~\"$user_class\"}[1m])) by (le))", "legendFormat": "p99" }
+          ]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: benchmarking
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      tolerations:
+        - key: hivekeep.io/benchmarking
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          env:
+            # Reached only through kubectl port-forward; no login screen.
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: Admin
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 3000
+          volumeMounts:
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: provisioning
+          configMap:
+            name: grafana-provisioning
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: benchmarking
+spec:
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
