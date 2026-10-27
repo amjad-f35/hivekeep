@@ -1,0 +1,799 @@
+"""Unit tests for server_telemetry.py.
+
+Run with: python3 crates/hivekeep-bench/locust/unit_tests/test_server_telemetry.py
+"""
+
+import contextlib
+import csv
+import io
+import json
+import re
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import runner
+import server_telemetry
+
+NO_PERCENTILES = {"min": None, "p50": None, "p90": None, "p95": None,
+                  "p99": None, "max": None, "avg": None}
+
+WINDOW = {"prom_url": "http://localhost:9090", "start_ts": 100,
+          "end_ts": 105, "steady_start_ts": 100}
+
+
+def ranges(packing, node=(), pod=(), active=(), ws=(), actor_ws=()):
+    """A query_prometheus_range fake: packing, PSI, active actors, working set.
+
+    Pod PSI only answers the pod-slice selector, so a query that loses the id
+    regex (and would also sum the pause container) gets nothing back. Node PSI
+    only answers when kept to nodes hosting a worker pod.
+    """
+    pod_slice = ('{pod=~"benchmark-worker.*", container="", '
+                 'id=~".*[/-]pod[^/]+(\\\\.slice)?"}')
+    worker_nodes = "and on (instance) sum by (instance) (rate("
+
+    def fake(_url, query, *_args, **_kwargs):
+        if "hivekeep_workerpool_workers" in query:
+            return packing
+        if "hivekeep_actor_stats_sampled_actors" in query:
+            return list(active)
+        if "hivekeep_actor_stats_memory_working_set_bytes" in query:
+            return list(actor_ws)
+        # Before the PSI branch: the node working set query has container="node".
+        if "container_memory_working_set_bytes" in query:
+            return list(ws)
+        if 'container="node"' in query:
+            return list(node) if worker_nodes in query and pod_slice in query else []
+        return list(pod) if pod_slice in query else []
+    return fake
+
+ARGV = ["runner.py", "-f", "tests/glutton.py", "-t", "1m", "-u", "10",
+        "--tag", "unit", "--name", "unit-run", "--dest", "/tmp"]
+
+
+def harvest():
+    return server_telemetry.harvest_server_telemetry(**WINDOW)
+
+
+def snapshots(lag_s=0):
+    """The snapshot section alone, which issues no range queries."""
+    return server_telemetry._harvest_snapshots(
+        WINDOW["prom_url"], WINDOW["steady_start_ts"], WINDOW["end_ts"], lag_s
+    )
+
+
+def parse(*extra):
+    with mock.patch.object(sys, "argv", ARGV + list(extra)):
+        return runner.parse_args()
+
+
+MB = 1024 * 1024
+
+# The memory image selector: pages.img (gVisor) or memory-ranges (microVM).
+MEMORY_IMAGE = '{file_name=~"pages.img|memory-ranges"}'
+
+# A whole suspend or resume, every snapshot kind.
+SNAPSHOT_OP = '{snapshot_phase="total"}'
+
+# Each cumulative sum _harvest_snapshots reads, by a substring of its query.
+SUMS = {
+    "count": "hivekeep_keeper_snapshot_size_bytes_count" + MEMORY_IMAGE,
+    "size": "hivekeep_keeper_snapshot_size_bytes_sum" + MEMORY_IMAGE,
+    "bytes": "sum(hivekeep_keeper_snapshot_size_bytes_sum)",
+    # Checkpoint seconds: both checkpoint_mb_s and checkpoint_mean_s read it.
+    "seconds": "hivekeep_actor_checkpoint_duration_seconds_sum" + SNAPSHOT_OP,
+    "restore_sum": "hivekeep_actor_restore_duration_seconds_sum" + SNAPSHOT_OP,
+    "restore_count": "hivekeep_actor_restore_duration_seconds_count" + SNAPSHOT_OP,
+    "checkpoint_count":
+        "hivekeep_actor_checkpoint_duration_seconds_count" + SNAPSHOT_OP,
+}
+
+
+def snapshot_prom(quantile=None, start=None, end=None, at=(100, 105), oom=None):
+    """A query_prometheus_instant fake answering by query and timestamp.
+
+    Every quantile read at the window end returns `quantile`; `start` and `end`
+    map a SUMS name to its value at the two instants in `at`. A window delta
+    query subtracts its `@` value, or zero when that series is absent. Anything
+    else, including a read at the wrong time, returns no series. Every OOM
+    query returns `oom`, or with a dict, the value of the selector it holds.
+    """
+    by_time = {at[0]: start or {}, at[1]: end or {}}
+
+    def fake(_url, query, time_ts=None):
+        if "container_oom_events_total" in query:
+            val = oom
+            if isinstance(oom, dict):
+                # The existence check has no selector, so it finds the metric.
+                val = next((v for k, v in oom.items() if k in query), "1")
+        elif query.startswith("histogram_quantile"):
+            val = quantile if time_ts == at[1] else None
+        else:
+            name = next((n for n, s in SUMS.items() if s in query), None)
+            val = by_time.get(time_ts, {}).get(name)
+            then = re.search(r" @ (\d+)\)", query)
+            if then and val is not None:
+                was = by_time.get(int(then.group(1)), {}).get(name, "0")
+                val = str(float(val) - float(was))
+        return [{"value": [time_ts, val]}] if val is not None else []
+    return fake
+
+
+def history_csv(rows):
+    """A stats_history.csv from (timestamp, users) or (timestamp, users, name)."""
+    f = tempfile.NamedTemporaryFile(
+        "w", delete=False, suffix=".csv", encoding="utf-8"
+    )
+    writer = csv.DictWriter(f, fieldnames=["Timestamp", "Name", "User Count"])
+    writer.writeheader()
+    for ts, users, *name in rows:
+        writer.writerow({"Timestamp": ts, "Name": name[0] if name else "Aggregated",
+                         "User Count": users})
+    f.close()
+    return Path(f.name)
+
+
+class ServerTelemetryTest(unittest.TestCase):
+    def test_compute_percentiles(self):
+        res = server_telemetry.compute_percentiles([float(i) for i in range(1, 201)])
+        self.assertEqual(
+            (res["min"], res["p50"], res["p90"], res["p95"], res["p99"],
+             res["max"], res["avg"]),
+            (1.0, 101.0, 181.0, 191.0, 199.0, 200.0, 100.5))
+
+        res = server_telemetry.compute_percentiles([7.5])
+        self.assertEqual((res["p50"], res["p90"], res["p95"], res["p99"]),
+                         (7.5, 7.5, 7.5, 7.5))
+
+        res = server_telemetry.compute_percentiles(
+            [1.0, float("nan"), 2.0, float("inf"), float("-inf"), 3.0]
+        )
+        self.assertEqual((res["min"], res["p50"], res["max"], res["avg"]),
+                         (1.0, 2.0, 3.0, 2.0))
+
+        self.assertEqual(server_telemetry.compute_percentiles([]), NO_PERCENTILES)
+        self.assertEqual(server_telemetry.compute_percentiles([float("nan")]),
+                         NO_PERCENTILES)
+
+    def test_steady_state_window(self):
+        # 90% of peak (7) is 6.3; the drop at 140 is teardown and left out.
+        path = history_csv([("100", "2"), ("110", "4"), ("120", "6.3"),
+                            ("130", "7"), ("140", "3")])
+        try:
+            self.assertEqual(
+                server_telemetry.get_steady_state_window(
+                    path, start_ts=100, end_ts=150),
+                (120, 130),
+            )
+        finally:
+            path.unlink()
+
+        # Uses observed peak (15) rather than requested -u (5).
+        path = history_csv([("100", "5"), ("110", "10"), ("120", "15"),
+                            ("130", "15")])
+        try:
+            self.assertEqual(
+                server_telemetry.get_steady_state_window(
+                    path, start_ts=100, end_ts=150),
+                (120, 130),
+            )
+        finally:
+            path.unlink()
+
+        # Zero users falls back to [start_ts, end_ts].
+        path = history_csv([("120", "0")])
+        try:
+            self.assertEqual(
+                server_telemetry.get_steady_state_window(
+                    path, start_ts=100, end_ts=150),
+                (100, 150),
+            )
+        finally:
+            path.unlink()
+
+    @mock.patch("urllib.request.urlopen")
+    def test_range_query_window_guard(self, mock_urlopen):
+        # Zero-length window [100, 100] is widened to [100, 101].
+        resp = mock.MagicMock()
+        resp.read.return_value = json.dumps({
+            "status": "success",
+            "data": {"result": [{"metric": {}, "values": [[100, "1.0"]]}]},
+        }).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = resp
+
+        res = server_telemetry.query_prometheus_range(
+            "http://localhost:9090", "up", 100, 100)
+        url = mock_urlopen.call_args[0][0].full_url
+        self.assertIn("start=100", url)
+        self.assertIn("end=101", url)
+        self.assertEqual(len(res), 1)
+
+        server_telemetry.query_prometheus_range(
+            "http://localhost:9090", "up", 100, 160)
+        url = mock_urlopen.call_args[0][0].full_url
+        self.assertIn("start=100", url)
+        self.assertIn("end=160", url)
+
+    def test_malformed_instant_response(self):
+        for bad in ([{"value": None}], [{"value": []}], [{"value": [100, None]}]):
+            self.assertIsNone(server_telemetry._parse_instant_float(bad))
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_packing_and_checkpoint_math(self, mock_instant, mock_range):
+        # Inf samples are filtered out before JSON serialization.
+        partial = {"metric": {"state": "partial"},
+                   "values": [[100, "3.0"], [105, "3.0"], [110, "Inf"]]}
+        full = {"metric": {"state": "at_capacity"},
+                "values": [[100, "1.0"], [105, "1.0"]]}
+        idle = {"metric": {"state": "idle"},
+                "values": [[100, "1.0"], [105, "1.0"]]}
+        quiet = [{"metric": {"instance": f"node-{n}"},
+                  "values": [[100, "0.0"], [105, "0.0"]]} for n in "ab"]
+        pods = [{"metric": {"pod": f"benchmark-worker-{p}"},
+                 "values": [[100, "0.5"], [105, "0.5"]]} for p in "ab"]
+        mock_range.side_effect = ranges(
+            [partial, full, idle], node=quiet, pod=pods,
+            active=[{"metric": {"instance": "keeper-a"}, "values": [[135, "3"]]}],
+            ws=[{"metric": {"instance": "node-a"},
+                 "values": [[100, str(2**30)], [105, str(2**30)]]}],
+            actor_ws=[{"metric": {"instance": "keeper-a"},
+                       "values": [[135, str(6 * 2**30)]]}])
+        # The default 70s lag reads the snapshot window at 135 and 140.
+        mock_instant.side_effect = snapshot_prom(
+            "11.5",
+            start={"count": "100", "size": "0", "restore_sum": "0",
+                   "restore_count": "0", "seconds": "0",
+                   "checkpoint_count": "0"},
+            end={"count": "150", "size": str(100 * MB), "bytes": str(100 * MB),
+                 "seconds": "50", "restore_sum": "4", "restore_count": "8",
+                 "checkpoint_count": "25"},
+            at=(135, 140), oom="0")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_json = Path(td) / "server_summary.json"
+            out_jsonl = Path(td) / "stats.jsonl"
+            with contextlib.redirect_stdout(io.StringIO()), \
+                 mock.patch("time.time", return_value=110), \
+                 mock.patch("time.sleep") as sleep:
+                server_telemetry.extract_and_record_server_telemetry(
+                    prom_url="http://localhost:9090",
+                    start_ts=100,
+                    end_ts=105,
+                    stats_history_csv=Path(td) / "missing.csv",
+                    output_json_path=out_json,
+                    jsonl_path=out_jsonl,
+                    data_ts="2026-01-01",
+                    tag="unit",
+                    test_name="unit-run",
+                    worker_pods={"worker_restarts": 1, "worker_oomkilled_pods": 1,
+                                 "evicted": 0, "worker_pods_lost": 0},
+                )
+            summary = json.loads(out_json.read_text())
+            row = json.loads(out_jsonl.read_text().splitlines()[0])
+
+        sleep.assert_called_once_with(65)  # until end 105 + 70, from 110
+        self.assertEqual(summary["metadata"]["keeper_lag_s"], 70)
+        # Packing, PSI and cAdvisor are not shifted; keeper stats are, like snapshots.
+        windows = {("hivekeep_actor_stats" in c.args[1], c.args[2:4])
+                   for c in mock_range.call_args_list}
+        self.assertEqual(windows, {(False, (100, 105)), (True, (135, 140))})
+        self.assertEqual(
+            set(summary),
+            {"metadata", "cluster_packing", "node_psi", "pod_psi", "snapshots",
+             "active_actors", "working_set", "oom_events"},
+        )
+        packing = summary["cluster_packing"]
+        self.assertEqual(packing["summary"]["p50"], 0.8)  # 3 + 1 busy / 5 workers
+        self.assertEqual(packing["timeseries"][0]["total_workers"], 5.0)
+        self.assertEqual(len(packing["timeseries"]), 2)
+        self.assertNotIn("Infinity", json.dumps(summary))
+
+        self.assertEqual(summary["pod_psi"]["pods"], 2)
+        self.assertEqual(summary["pod_psi"]["cpu_stall_pct"]["p99"], 0.5)
+        self.assertEqual(summary["node_psi"]["nodes"], 2)
+        self.assertEqual(summary["node_psi"]["cpu_stall_pct"]["p99"], 0.0)
+
+        snapshots = summary["snapshots"]
+        self.assertEqual(snapshots["checkpoints_in_window"], 50)  # 150 - 100
+        self.assertEqual(snapshots["checkpoints_cumulative"], 150)
+
+        self.assertEqual(row["metric"], "server_summary")
+        m = row["measurements"]
+        # Every source answered, so a key wired to a wrong name would read None.
+        self.assertEqual(len(m), 80)
+        self.assertEqual([k for k, v in m.items() if v is None], [])
+        # Every value a string, so one row's types match every other row's.
+        self.assertTrue(all(isinstance(v, str) for v in m.values()))
+        self.assertEqual(m["checkpoint_mb_s"], "2.0")
+        self.assertEqual(m["pod_psi_cpu_stall_p99"], "0.5")
+        self.assertEqual(m["psi_cpu_stall_p90"], "0.0")
+        self.assertEqual(m["cluster_packing_p95"], "0.8")
+        self.assertEqual(m["snapshot_size_p95_mb"], "11.5")
+        self.assertEqual(m["restore_mean_s"], "0.5")
+        self.assertEqual(m["checkpoint_mean_s"], "2.0")
+        self.assertEqual(m["active_actors_p99"], "3.0")
+        # Read at 135, moved back to 100; 6 GiB over the 3 actors on keeper-a.
+        actor = summary["working_set"]["actor"]
+        self.assertEqual(actor["timeseries"][0]["timestamp"], 100)
+        self.assertEqual(m["working_set_actor_p50_gb"], "6.0")
+        self.assertEqual(m["working_set_per_actor_p50_gb"], "2.0")
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_packing_total_follows_pool_size(self, mock_instant, mock_range):
+        # The pool grows from 20 to 40 workers mid-run; each sample uses its own.
+        mock_range.side_effect = ranges([
+            {"metric": {"state": "partial"},
+             "values": [[100, "4.0"], [105, "4.0"]]},
+            {"metric": {"state": "idle"},
+             "values": [[100, "16.0"], [105, "36.0"]]},
+        ])
+        mock_instant.return_value = []
+
+        points = harvest()["cluster_packing"]["timeseries"]
+        self.assertEqual([p["total_workers"] for p in points], [20.0, 40.0])
+        self.assertEqual([p["packing_ratio"] for p in points], [0.2, 0.1])
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_packing_ignores_exited_api_processes(self, mock_instant, mock_range):
+        # A dead hivekeep-api's idle=2 lingers until 105; the live one runs to 110.
+        def series(instance, state, values):
+            return {"metric": {"state": state,
+                               "exported_instance": instance},
+                    "values": values}
+        mock_range.side_effect = ranges([
+            series("dead", "idle", [[100, "2.0"], [105, "2.0"]]),
+            series("dead", "partial", [[100, "0.0"], [105, "0.0"]]),
+            series("live", "idle", [[100, "0.0"], [105, "0.0"], [110, "1.0"]]),
+            series("live", "partial", [[100, "3.0"], [105, "3.0"], [110, "2.0"]]),
+        ])
+        mock_instant.return_value = []
+
+        points = harvest()["cluster_packing"]["timeseries"]
+        self.assertEqual([p["total_workers"] for p in points], [3.0, 3.0, 3.0])
+        self.assertEqual([p["busy_workers"] for p in points], [3.0, 3.0, 2.0])
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_missing_denominator_is_null(self, mock_instant, mock_range):
+        # Zero total workers yields packing_ratio=None.
+        mock_range.side_effect = ranges(
+            [{"metric": {"state": "idle"}, "values": [[100, "0.0"]]}])
+        mock_instant.return_value = []
+        point = harvest()["cluster_packing"]["timeseries"][0]
+        self.assertEqual(point["total_workers"], 0.0)
+        self.assertIsNone(point["packing_ratio"])
+
+        # Zero-duration window yields checkpoint_mb_s=None.
+        mock_range.side_effect = ranges([])
+        mock_instant.side_effect = lambda _u, q, time_ts=None: [
+            {"value": [100, "0" if " @ " in q else "5"]}]
+        snaps = server_telemetry.harvest_server_telemetry(
+            prom_url="http://localhost:9090", start_ts=100, end_ts=100,
+            steady_start_ts=100)["snapshots"]
+        self.assertEqual(snaps["checkpoints_in_window"], 0)
+        self.assertIsNone(snaps["checkpoint_mb_s"])
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_snapshot_fields_are_null_not_zero(self, mock_instant):
+        # Empty response -> all fields None.
+        mock_instant.return_value = []
+        snaps = snapshots()
+        self.assertIsNone(snaps["checkpoints_in_window"])
+        self.assertIsNone(snaps["checkpoints_cumulative"])
+        self.assertIsNone(snaps["checkpoint_mb_s"])
+        self.assertIsNone(snaps["size_p95_mb"])
+        self.assertIsNone(snaps["size_avg_mb"])
+        self.assertIsNone(snaps["restore_mean_s"])
+
+        # 0 bytes written over 4s -> measured 0.0.
+        mock_instant.side_effect = snapshot_prom(
+            "0.0", start={"count": "100"},
+            end={"count": "150", "bytes": "0", "seconds": "4"})
+        snaps = snapshots()
+        self.assertEqual(snaps["size_p50_mb"], 0.0)
+        self.assertEqual(snaps["checkpoints_in_window"], 50)
+        self.assertEqual(snaps["checkpoint_mb_s"], 0.0)
+
+        # Counter reset (end < start) -> window delta None.
+        mock_instant.side_effect = snapshot_prom(
+            "1.0", start={"count": "900"}, end={"count": "150"})
+        snaps = snapshots()
+        self.assertIsNone(snaps["checkpoints_in_window"])
+        self.assertEqual(snaps["checkpoints_cumulative"], 150)
+
+        # Series born inside the window counts from zero.
+        mock_instant.side_effect = snapshot_prom("1.0", end={"count": "6"})
+        self.assertEqual(snapshots()["checkpoints_in_window"], 6)
+
+        # 100 MiB across 50 checkpoints = 2.0 MB; 4s over 8 restores = 0.5s.
+        mock_instant.side_effect = snapshot_prom(
+            "1.75",
+            start={"count": "100", "size": str(300 * MB),
+                   "restore_sum": "10", "restore_count": "20"},
+            end={"count": "150", "size": str(400 * MB),
+                 "restore_sum": "14", "restore_count": "28"},
+        )
+        snaps = snapshots()
+        self.assertEqual(snaps["size_p99_mb"], 1.75)
+        self.assertEqual(snaps["size_avg_mb"], 2.0)
+        self.assertEqual(snaps["restore_mean_s"], 0.5)
+        # Percentiles diff buckets from the window start, never a fixed 5m.
+        queries = [c.args[1] for c in mock_instant.call_args_list]
+        self.assertFalse(any("[5m]" in q for q in queries))
+        self.assertTrue(any("@ 100)" in q for q in queries))
+
+        # Both edges read half the lag late: 107 and 112.
+        mock_instant.side_effect = snapshot_prom(
+            "1.0", start={"count": "100"}, end={"count": "150"}, at=(107, 112))
+        mock_instant.reset_mock()
+        self.assertEqual(snapshots(lag_s=15)["checkpoints_in_window"], 50)
+        queries = [c.args[1] for c in mock_instant.call_args_list]
+        self.assertTrue(any("@ 107)" in q for q in queries))
+
+        # Sum reset or zero count -> size_avg_mb None.
+        mock_instant.side_effect = snapshot_prom(
+            "1.0", start={"count": "100", "size": str(400 * MB)},
+            end={"count": "150", "size": str(300 * MB)})
+        self.assertIsNone(snapshots()["size_avg_mb"])
+
+        mock_instant.side_effect = snapshot_prom(
+            "1.0", start={"count": "0", "size": "0"},
+            end={"count": "0", "size": "0"})
+        self.assertIsNone(snapshots()["size_avg_mb"])
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_steady_window_bounds_packing_and_psi(self, mock_instant, mock_range):
+        # Samples after steady_end (105) are teardown and left out.
+        mock_range.side_effect = ranges(
+            [{"metric": {"state": "partial"},
+              "values": [[100, "4.0"], [105, "4.0"], [110, "0.0"]]},
+             {"metric": {"state": "idle"},
+              "values": [[100, "1.0"], [105, "1.0"], [110, "5.0"]]}],
+            node=[{"metric": {"instance": "node-a"},
+                   "values": [[100, "0.5"], [110, "9.0"]]}],
+            pod=[{"metric": {"pod": "benchmark-worker-a"},
+                  "values": [[100, "0.5"], [110, "9.0"]]}],
+        )
+        mock_instant.return_value = []
+        out = server_telemetry.harvest_server_telemetry(
+            prom_url="http://localhost:9090", start_ts=100, end_ts=110,
+            steady_start_ts=100, steady_end_ts=105)
+        self.assertEqual(out["cluster_packing"]["summary"]["min"], 0.8)
+        self.assertEqual(len(out["cluster_packing"]["timeseries"]), 3)
+        self.assertEqual(out["node_psi"]["cpu_stall_pct"]["max"], 0.5)
+        self.assertEqual(out["pod_psi"]["cpu_stall_pct"]["max"], 0.5)
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_oom_pod_needs_both_reads(self, mock_instant):
+        leaf, worker = 'pod=""', 'namespace="benchmark-workloads"'
+        mock_instant.side_effect = snapshot_prom(
+            oom={'container="node"': "2", leaf: "3", worker: "1"})
+        out = server_telemetry._count_oom_events("http://p", 100, 105)
+        self.assertEqual(out, {"node": 2, "pod": 4,
+                               "window": {"start_ts": 100, "end_ts": 105}})
+        # Half a best-effort read is no read.
+        mock_instant.side_effect = snapshot_prom(
+            oom={'container="node"': "2", leaf: None, worker: "1"})
+        out = server_telemetry._count_oom_events("http://p", 100, 105)
+        self.assertEqual((out["node"], out["pod"]), (2, None))
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    def test_working_set_gib_and_steady_window(self, mock_range):
+        gib = 2**30
+        mock_range.side_effect = ranges([], ws=[
+            {"metric": {"instance": "node-a"},
+             "values": [[90, str(8 * gib)], [100, str(gib)], [110, str(3 * gib)]]},
+            {"metric": {"instance": "node-b"}, "values": [[110, str(gib)]]},
+        ])
+        out = server_telemetry._measure_working_set("http://p", 90, 110, 100, 110)
+        node = out["node"]
+        # The 8 GiB sample at 90 is ramp-up: in the timeseries, not the summary.
+        self.assertEqual((node["summary"]["p50"], node["summary"]["max"]), (1.0, 3.0))
+        self.assertEqual(node["count"], 2)
+        self.assertEqual(node["timeseries"], [
+            {"timestamp": 90, "total_gb": 8.0, "max_gb": 8.0},
+            {"timestamp": 100, "total_gb": 1.0, "max_gb": 1.0},
+            {"timestamp": 110, "total_gb": 4.0, "max_gb": 3.0},
+        ])
+        self.assertEqual(set(out), {"node", "worker", "keeper", "actor", "per_actor"})
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    def test_working_set_null_not_zero(self, mock_range):
+        mock_range.side_effect = ranges([])
+        out = server_telemetry._measure_working_set("http://p", 90, 110, 100, 110)
+        for block in out.values():
+            self.assertEqual(block, {"summary": NO_PERCENTILES, "count": None,
+                                     "timeseries": []})
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    def test_working_set_actor_keys_like_active_actors(self, mock_range):
+        # One keeper through 2 meter pods, a stale 4 GiB and a fresh 6 GiB.
+        gib = 2**30
+        meter = [{"exported_instance": "a", "instance": f"meter-{i}"} for i in "01"]
+        mock_range.side_effect = ranges(
+            [],
+            ws=[{"metric": {"pod": p}, "values": [[100, str(gib)]]} for p in "ab"],
+            actor_ws=[{"metric": m, "values": [[100, str(v * gib)]]}
+                      for m, v in zip(meter, (4, 6))],
+            active=[{"metric": m, "values": [[100, "2"]]} for m in meter])
+        out = server_telemetry._measure_working_set("http://p", 90, 110, 100, 110)
+        self.assertEqual(out["actor"]["count"], 1)
+        self.assertEqual(out["per_actor"]["summary"]["min"], 3.0)  # max 6 / 2
+        # cAdvisor keeps the label key: 2 worker pods are still 2.
+        self.assertEqual(out["worker"]["count"], 2)
+
+    def test_working_set_queries_keep_live_workers(self):
+        q = server_telemetry.WORKING_SET_QUERIES
+        live = "rate(container_cpu_usage_seconds_total"
+        for block in q.values():
+            self.assertTrue(block.startswith("max by ("))  # a restart has 2 series
+            self.assertIn(live, block)
+        self.assertIn('container="node"', q["node"])
+        self.assertIn("and on (pod)", q["worker"])
+
+    def test_oom_query_shape(self):
+        q = server_telemetry._oom_growth_query('container="node"', 100, 600)
+        s = 'container_oom_events_total{container="node"}'
+        # Clamped per series inside the sum, so one reset can't hide a kill.
+        self.assertTrue(q.startswith(f"sum(clamp_min(max_over_time({s}[600s]) - "))
+        self.assertIn(f"({s} @ 100 or max_over_time({s}[600s]) * 0), 0))", q)
+        self.assertTrue(q.endswith(" or vector(0)"))
+        # One backslash pair in PromQL, so the regex reads a literal dot.
+        self.assertIn(r"\\.scope/", server_telemetry.OOM_POD[0])
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_oom_metric_missing_is_null(self, mock_instant):
+        mock_instant.side_effect = snapshot_prom(oom=None)
+        self.assertEqual(server_telemetry._count_oom_events("http://p", 100, 105), {
+            "node": None, "pod": None, "window": {"start_ts": 100, "end_ts": 105}})
+
+    @mock.patch("server_telemetry.harvest_server_telemetry",
+                return_value={"oom_events": {"node": 0, "pod": 0}})
+    def test_worker_pod_fields_null_when_not_read(self, _harvest):
+        with tempfile.TemporaryDirectory() as td:
+            out_json = Path(td) / "server_summary.json"
+            with contextlib.redirect_stdout(io.StringIO()):
+                server_telemetry.extract_and_record_server_telemetry(
+                    "http://p", 100, 105, Path(td) / "missing.csv", out_json,
+                    Path(td) / "stats.jsonl", "2026-01-01", "unit", "unit-run",
+                    lag_s=0)
+            oom = json.loads(out_json.read_text())["oom_events"]
+        self.assertEqual(oom, {"node": 0, "pod": 0, "worker_restarts": None,
+                               "worker_oomkilled_pods": None, "evicted": None,
+                               "worker_pods_lost": None})
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_failed_delta_read_is_unknown(self, mock_instant):
+        # A failed delta query is not taken as a series born in the window.
+        fake = snapshot_prom("1.0", start={"count": "100"}, end={"count": "150"})
+        mock_instant.side_effect = (
+            lambda url, q, time_ts=None: [] if " @ " in q else fake(url, q, time_ts))
+        snaps = snapshots()
+        self.assertIsNone(snaps["checkpoints_in_window"])
+        self.assertEqual(snaps["checkpoints_cumulative"], 150)
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_checkpoint_throughput_from_counter_sums(self, mock_instant):
+        # 100 MiB / 50s = 2.0 MB/s.
+        mock_instant.side_effect = snapshot_prom(
+            "9.0", end={"bytes": str(100 * MB), "seconds": "50"})
+        self.assertEqual(snapshots()["checkpoint_mb_s"], 2.0)
+
+        # Zero duration -> None.
+        mock_instant.side_effect = snapshot_prom(
+            "9.0", end={"bytes": str(8 * MB), "seconds": "0"})
+        self.assertIsNone(snapshots()["checkpoint_mb_s"])
+
+        # Duration query must filter by snapshot_phase="total".
+        spent = [c.args[1] for c in mock_instant.call_args_list
+                 if "hivekeep_actor_checkpoint_duration_seconds_sum" in c.args[1]]
+        self.assertIn('snapshot_phase="total"', spent[0])
+        self.assertNotIn("error_type", spent[0])
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_snapshot_selector_covers_both_runtimes(self, mock_instant):
+        # Sizes and the count read the memory image of either runtime; the
+        # byte total for checkpoint_mb_s still sums every file.
+        mock_instant.side_effect = snapshot_prom(
+            "1.0", start={"count": "100", "size": str(300 * MB)},
+            end={"count": "150", "size": str(400 * MB)})
+        snaps = snapshots()
+        self.assertEqual(snaps["checkpoints_in_window"], 50)
+        self.assertEqual(snaps["size_avg_mb"], 2.0)
+
+        queries = [c.args[1] for c in mock_instant.call_args_list]
+        sizes = [q for q in queries if "hivekeep_keeper_snapshot_size_bytes" in q]
+        self.assertTrue(any("_bucket" + MEMORY_IMAGE in q for q in sizes))
+        self.assertTrue(any("_count" + MEMORY_IMAGE in q for q in sizes))
+        self.assertTrue(any("_sum" + MEMORY_IMAGE in q for q in sizes))
+        self.assertFalse(any('file_name="pages.img"' in q for q in sizes))
+        self.assertIn("sum(hivekeep_keeper_snapshot_size_bytes_sum)", queries)
+
+    @mock.patch("server_telemetry.query_prometheus_instant")
+    def test_restore_and_checkpoint_read_keeper_histograms(self, mock_instant):
+        # 42s, above 10s: the buckets reach 60s.
+        mock_instant.side_effect = snapshot_prom(
+            "42.0",
+            start={"restore_sum": "0", "restore_count": "0",
+                   "seconds": "0", "checkpoint_count": "0"},
+            end={"restore_sum": "300", "restore_count": "10",
+                 "seconds": "40", "checkpoint_count": "20"})
+        snaps = snapshots()
+        self.assertEqual(snaps["restore_p99_s"], 42.0)
+        self.assertEqual(snaps["checkpoint_p50_s"], 42.0)
+        self.assertEqual(snaps["restore_mean_s"], 30.0)    # 300s / 10
+        self.assertEqual(snaps["checkpoint_mean_s"], 2.0)  # 40s / 20
+
+        queries = [c.args[1] for c in mock_instant.call_args_list]
+        self.assertFalse(any("rpc_server_call_duration" in q for q in queries))
+        for op in ("restore", "checkpoint"):
+            self.assertTrue(any(
+                q.startswith("histogram_quantile")
+                and f"hivekeep_actor_{op}_duration_seconds_bucket{SNAPSHOT_OP}" in q
+                for q in queries))
+        # Every kind, like the sizes, which have no kind label.
+        self.assertFalse(any("snapshot_kind" in q for q in queries))
+
+    @mock.patch("server_telemetry.query_prometheus_range")
+    def test_active_actors(self, mock_range):
+        def active(lag_s=0, steady=(100, 130)):
+            return server_telemetry._count_active_actors(
+                "http://localhost:9090", 100, 130, *steady, lag_s=lag_s)
+
+        # At 120 no keeper reported, so the step is skipped; at 130 only a
+        # did, so b's missing series counts as 0.
+        mock_range.return_value = [
+            {"metric": {"instance": "a"},
+             "values": [[100, "2"], [110, "3"], [130, "4"]]},
+            {"metric": {"instance": "b"}, "values": [[100, "1"], [110, "1"]]},
+        ]
+        out = active()
+        self.assertEqual([p["active_actors"] for p in out["timeseries"]],
+                         [3.0, 4.0, 4.0])
+        self.assertEqual([p["timestamp"] for p in out["timeseries"]],
+                         [100, 110, 130])
+        self.assertEqual((out["summary"]["min"], out["summary"]["max"]),
+                         (3.0, 4.0))
+        self.assertEqual(out["keepers"], 2)
+        query = mock_range.call_args.args[1]
+        self.assertIn("sum by (instance, exported_instance)", query)
+        self.assertIn("hivekeep_actor_stats_sampled_actors", query)
+
+        # Keepers hosting an actor at each point; b drops out at 130.
+        self.assertEqual([p["active_keepers"] for p in out["timeseries"]],
+                         [2, 2, 1])
+        self.assertEqual(set(out["timeseries"][0]),
+                         {"timestamp", "active_actors", "active_keepers"})
+
+        # The steady window bounds the summary but not the timeseries.
+        out = active(steady=(100, 110))
+        self.assertEqual(out["summary"]["min"], 3.0)
+        self.assertEqual(len(out["timeseries"]), 3)
+
+        # Read half the lag late, like the snapshot block, but stamped back
+        # onto the run's clock; the steady window still picks the late reads.
+        mock_range.return_value = [{"metric": {"instance": "a"},
+                                    "values": [[135, "3"], [145, "5"]]}]
+        out = active(lag_s=70, steady=(100, 100))
+        self.assertEqual(mock_range.call_args.args[2:4], (135, 165))
+        self.assertEqual([p["timestamp"] for p in out["timeseries"]], [100, 110])
+        self.assertEqual(out["summary"]["max"], 3.0)
+
+        # One keeper re-exported by 2 collector replicas merges by max, not sum.
+        mock_range.return_value = [
+            {"metric": {"instance": f"meter-{i}", "exported_instance": "a"},
+             "values": [[100, "3"], [110, v]]} for i, v in ((0, "2"), (1, "3"))
+        ]
+        out = active()
+        self.assertEqual([p["active_actors"] for p in out["timeseries"]],
+                         [3.0, 3.0])
+        self.assertEqual(out["keepers"], 1)
+
+        # A reported 0 is not hosting.
+        mock_range.return_value = [
+            {"metric": {"instance": "a"}, "values": [[100, "0"], [110, "2"]]},
+            {"metric": {"instance": "b"}, "values": [[100, "3"], [110, "0"]]},
+        ]
+        out = active()
+        self.assertEqual([p["active_keepers"] for p in out["timeseries"]][:2],
+                         [1, 1])
+
+        # Never seen (not scraped) is unmeasured, not zero.
+        mock_range.return_value = []
+        out = active()
+        self.assertEqual(out["summary"], NO_PERCENTILES)
+        self.assertIsNone(out["keepers"])
+        self.assertEqual(out["timeseries"], [])
+
+    def test_series_samples_skips_bad_points(self):
+        series = {"values": [[100, "1"], [110, "NaN"], [120, "+Inf"],
+                             [130, "-Inf"], [140], [150, None], ["x", "2"],
+                             [160, "2.5"]]}
+        self.assertEqual(server_telemetry._series_samples(series),
+                         {100: 1.0, 160: 2.5})
+        self.assertEqual(server_telemetry._series_samples({}), {})
+
+    def test_steady_window_ignores_per_request_rows(self):
+        # --csv-full-history adds a row per operation; only Aggregated counts.
+        path = history_csv([("100", "5"), ("100", "500", "ResumeActor"),
+                            ("110", "10"), ("110", "500", "ResumeActor")])
+        try:
+            self.assertEqual(
+                server_telemetry.get_steady_state_window(path, 100, 150),
+                (110, 110))
+        finally:
+            path.unlink()
+
+    def test_locust_writes_full_history(self):
+        class Launched(Exception):
+            pass
+
+        with mock.patch.object(runner, "needs_worker", return_value=False), \
+             mock.patch.object(runner.subprocess, "Popen",
+                               side_effect=Launched) as popen, \
+             contextlib.redirect_stdout(io.StringIO()), \
+             self.assertRaises(Launched):
+            runner.run_test(parse(), Path("/tmp/unit"), io.StringIO(),
+                            io.StringIO())
+        self.assertIn("--csv-full-history", popen.call_args.args[0])
+
+    def test_prometheus_url_flag(self):
+        self.assertEqual(parse().prometheus_url, runner.DEFAULT_PROMETHEUS_URL)
+        self.assertEqual(parse("--prometheus-url", "http://x:9090").prometheus_url,
+                         "http://x:9090")
+        extra = parse("--prometheus-url", "http://x:9090", "--max-wait-time", "1.0")
+        self.assertNotIn("--prometheus-url", extra.locust_extra)
+        self.assertEqual(extra.locust_extra, ["--max-wait-time", "1.0"])
+
+        self.assertEqual(parse().keeper_lag_s, 70)
+        lag = parse("--keeper-lag-s", "20")
+        self.assertEqual((lag.keeper_lag_s, lag.locust_extra), (20, []))
+
+    @mock.patch.object(runner, "extract_and_record_server_telemetry")
+    @mock.patch.object(runner, "upload")
+    @mock.patch.object(runner, "run_test", return_value=1)
+    def test_telemetry_survives_a_missing_stats_csv(self, _run, _up, telemetry):
+        with mock.patch.object(sys, "argv", ARGV + ["--no-cluster-facts",
+                                                    "--allow-empty-stats",
+                                                    "--keeper-lag-s", "70"]), \
+             contextlib.redirect_stdout(io.StringIO()):
+            runner.main()
+        self.assertTrue(telemetry.called)
+        self.assertEqual(telemetry.call_args.kwargs["lag_s"], 70)
+        self.assertNotIn("worker_pod_count", telemetry.call_args.kwargs)
+
+    # Ladder rows follow the telemetry harvest, whose wait covers their
+    # last samples, and a failure there still uploads the run.
+    @mock.patch.object(runner, "upload")
+    @mock.patch.object(runner, "run_test", return_value=1)
+    def test_ladder_steps_follow_telemetry_and_may_fail(self, _run, upload):
+        calls = []
+        telemetry = mock.Mock(side_effect=lambda **_: calls.append("telemetry"))
+
+        def ladder(jsonl_path, log_path, prom_url, *_):
+            calls.append(("ladder", log_path.name, prom_url))
+            raise RuntimeError("prometheus down")
+
+        out = io.StringIO()
+        with mock.patch.object(runner, "extract_and_record_server_telemetry", telemetry), \
+             mock.patch.object(runner, "append_ladder_steps", ladder), \
+             mock.patch.object(sys, "argv", ARGV + ["--no-cluster-facts", "--allow-empty-stats",
+                                                    "--prometheus-url", "http://x:9090"]), \
+             contextlib.redirect_stdout(out):
+            runner.main()
+        self.assertEqual(calls, ["telemetry", ("ladder", "unit-run_logs.txt", "http://x:9090")])
+        self.assertIn("Failed to summarize ladder steps: prometheus down", out.getvalue())
+        self.assertTrue(upload.called)
+
+
+if __name__ == "__main__":
+    unittest.main()
