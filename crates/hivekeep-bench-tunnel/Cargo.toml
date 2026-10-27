@@ -1,0 +1,52 @@
+[package]
+name = "hivekeep-bench-tunnel"
+description = "Measures the CPU and memory the worker tunnel costs as load rises, with the tunnel hosted by the worker's own code."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+hivekeep-telemetry = { workspace = true }
+hivekeep-core = { workspace = true }
+hivekeep-identity = { workspace = true }
+hivekeep-proto = { workspace = true }
+# Not in [workspace.dependencies]; the tunnel under test.
+hivekeep-gate = { workspace = true }
+
+anyhow = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+futures = { workspace = true }
+h2 = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
+humantime = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+libc = { workspace = true }
+parking_lot = { workspace = true }
+rustls = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-rustls = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true, features = ["rt"] }
+tonic = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+x509-parser = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
