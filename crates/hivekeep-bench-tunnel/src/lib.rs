@@ -16,6 +16,7 @@ pub mod procstats;
 pub mod report;
 pub mod sandbox_net;
 pub mod sink;
+pub mod supervisor;
 pub mod workerhost;
 
 pub use error::{Error, Result};
