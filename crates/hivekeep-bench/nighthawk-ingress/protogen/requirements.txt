@@ -1,0 +1,3 @@
+# Code generation only: the Nighthawk descriptor set and the hivekeep.api.v1
+# Python stubs. Its protobuf runtime must not be newer than requirements.txt's.
+grpcio-tools>=1.81.1

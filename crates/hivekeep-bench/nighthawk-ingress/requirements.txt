@@ -1,0 +1,5 @@
+# Runtime dependencies of the runner, installed into the Nighthawk image.
+protobuf>=6.33.5
+grpcio>=1.81.1
+requests
+google-cloud-storage
