@@ -1,0 +1,7 @@
+# The namespace of the egress benchmark: the origin server, the driver
+# gateway and the load-driver WorkerPool. The load-driver Actor itself lives
+# in the egress-bench hive of the Hivekeep API.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: egress-bench

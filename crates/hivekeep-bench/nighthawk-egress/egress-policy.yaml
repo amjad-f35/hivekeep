@@ -1,0 +1,30 @@
+# The load-driver Actor's EgressPolicy: a Hivekeep API resource
+# (protojson-shaped hivekeep.api.v1.EgressPolicy), not a Kubernetes object.
+# deploy-load-driver.sh applies it with
+#   hivectl create egress-policy driver -H egress-bench -f egress-policy.yaml
+# Each egress mode the gateway supports gets its own port on the origin.
+metadata:
+  hive: egress-bench
+  name: default
+rules:
+# Plaintext HTTP.
+- http:
+    hostnames:
+    - "*"
+    ports:
+      numbers:
+      - 80
+# HTTPS, terminated and re-originated by the gateway.
+- https:
+    hostnames:
+    - "*"
+    ports:
+      numbers:
+      - 443
+# TLS passed through untouched.
+- tlsPassthrough:
+    hostnames:
+    - "*"
+    ports:
+      numbers:
+      - 8443

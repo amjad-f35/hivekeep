@@ -1,0 +1,17 @@
+# The WorkerPool the load-driver Actor runs on. The ActorTemplate is a
+# Hivekeep API resource, not a Kubernetes object: it lives in
+# load-driver-template.yaml.tmpl and is created with
+# `hivectl create actor-template`. deploy-load-driver.sh fills
+# ${WORKER_IMAGE}.
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: load-driver
+  namespace: egress-bench
+  labels:
+    workload: load-driver
+spec:
+  replicas: 1
+  workerImage: ${WORKER_IMAGE}
+  sandboxClasses:
+  - name: gvisor

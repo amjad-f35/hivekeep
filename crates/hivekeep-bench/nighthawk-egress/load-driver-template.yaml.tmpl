@@ -1,0 +1,53 @@
+# The load-driver ActorTemplate: a Hivekeep API resource (protojson-shaped
+# hivekeep.api.v1.ActorTemplate), created by deploy-load-driver.sh with
+# `hivectl create actor-template -f -` once the egress-bench hive exists.
+# ${SNAPSHOT_BASE_URI} is filled by the script.
+#
+# Runs Nighthawk's nighthawk_service gRPC server on port 80, the port the
+# sandbox tunnel forwards ingress to, so a nighthawk_client outside can call
+# its ExecutionStream through the gate router and drive HTTP and HTTPS egress
+# load from inside the gVisor sandbox.
+metadata:
+  hive: egress-bench
+  name: load-driver
+workerSelector:
+  matchLabels:
+    workload: load-driver
+containers:
+- name: nighthawk-service
+  # The same nighthawk-dev digest as egress-origin.yaml and
+  # ../nighthawk-ingress/Dockerfile.
+  image: envoyproxy/nighthawk-dev@sha256:7729902afea9d83f593b240690ba7d6e8fff04f6215ada538cfb4c1452b2553e
+  command:
+  - /usr/local/bin/nighthawk_service
+  args:
+  - --listen
+  - 0.0.0.0:80
+  - --service
+  - traffic-generator-service
+  env:
+  # Trust the leaves the egress gateway mints when it terminates HTTPS.
+  - name: SSL_CERT_FILE
+    value: /run/hivekeep/egress-trust-bundle/trust-bundle.pem
+  - name: SSL_CERT_DIR
+    value: /run/hivekeep/egress-trust-bundle/
+  volumeMounts:
+  - name: system-info
+    mountPath: /run/hivekeep
+volumes:
+- name: system-info
+  systemInfo:
+    dataSources:
+    - trustBundle:
+        names:
+        - egress-mitm.hivekeep.io
+        - system-roots.hivekeep.io
+        path: egress-trust-bundle/trust-bundle.pem
+# Headroom, so the load driver is never the bottleneck.
+resources:
+  limits:
+    cpuMillicores: 2000
+    memoryBytes: 1073741824 # 1Gi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/egress-bench/load-driver/
