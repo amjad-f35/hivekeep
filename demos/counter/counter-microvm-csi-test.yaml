@@ -1,0 +1,20 @@
+# Worker pool for a manual check of a CSI-backed external volume on micro-VM
+# workers. Its ActorTemplate is counter-microvm-csi-test-template.yaml,
+# created with `hivectl create actor-template -f`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-demo-counter-microvm-csi
+---
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: counter-microvm-csi
+  namespace: hivekeep-demo-counter-microvm-csi
+  labels:
+    workload: counter-microvm-csi
+spec:
+  replicas: 1
+  sandboxClasses:
+  - name: microvm
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-microvm:0.1.0

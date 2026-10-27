@@ -1,0 +1,34 @@
+# ActorTemplate for the manual micro-VM CSI check: the counter with its
+# durable directory on a hostpath-CSI external volume. Needs the
+# hivekeep-demo-counter-microvm-csi hive and `scripts/csi/hostpath-kind.sh`.
+# Replace REGISTRY_PLACEHOLDER with your registry before creating it.
+metadata:
+  hive: hivekeep-demo-counter-microvm-csi
+  name: counter-microvm-csi
+workerSelector:
+  matchLabels:
+    workload: counter-microvm-csi
+containers:
+- name: counter
+  image: REGISTRY_PLACEHOLDER/hivekeep-demo-counter:0.1.0
+  command: ["/app/counter"]
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+  volumeMounts:
+  - name: data
+    mountPath: /home/counter
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_VOLUMES
+  storageLocation: gs://hivekeep-snapshots/hivekeep-demo-counter-microvm-csi/
+volumes:
+- name: data
+  external:
+    template:
+      capacityBytes: 1073741824 # 1Gi
+      storageClassName: csi-hostpath-sc
