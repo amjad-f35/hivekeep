@@ -1,0 +1,14 @@
+# The runner, the master's locustfiles and the Python user classes.
+locust==2.32.7
+prometheus-client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-prometheus
+opentelemetry-exporter-otlp
+protobuf>=6.33.5
+grpcio>=1.81.1
+requests
+# Result upload to gs:// destinations.
+google-cloud-storage
+# Cluster facts and pod-log reads.
+kubernetes

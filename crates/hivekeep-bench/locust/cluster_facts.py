@@ -1,0 +1,509 @@
+
+"""Cluster capacity and the actor-density frontiers of a trial.
+
+From the Kubernetes API this reads the worker pool's size, the allocatable
+CPU and memory of the nodes it runs on, their Kubernetes version, and what
+each worker pod declares (actor capacity, memory limit, sandbox class). From
+those and locust's user counts it writes a trial's `trial_summary` row:
+actors per node, per vCPU and per GiB, the actors-per-pod percentiles, the
+run window and the caller's --metadata. It also snapshots worker restarts
+and evictions around a run, for the server telemetry's `oom_events`.
+"""
+
+import argparse
+import csv
+import json
+import re
+from pathlib import Path
+from typing import Any, TextIO
+
+from kubernetes import client, config
+from kubernetes.utils import parse_quantity
+
+API_TIMEOUT_SECONDS = 5
+WORKER_POOL_NAMESPACE = "benchmark-workloads"
+WORKER_POOL_LABEL = "hivekeep.io/worker-pool"
+LIVE_POD_PHASES = ("Running", "Pending")
+MACHINE_TYPE_LABEL = "node.kubernetes.io/instance-type"
+
+# The worker container of a WorkerPool pod, as the controller names it.
+WORKER_CONTAINER = "worker"
+# The sandbox workers' --max-actors default.
+WORKER_DEFAULT_MAX_ACTORS = 1000
+# Worker images are named hivekeep-sandbox-<sandbox class>.
+SANDBOX_CLASS_IMAGE = re.compile(r"hivekeep-sandbox-(gvisor|microvm)")
+
+# Shape returned when the cluster cannot be read, or when discovery is skipped
+# with --no-cluster-facts. Keeping one definition means a trial_summary row has
+# the same fact keys either way, so consumers never have to special-case it.
+EMPTY_FACTS: dict[str, Any] = {
+    "machine_type": None,
+    "node_count": None,
+    "allocatable_cores": None,
+    "allocatable_ram_gb": None,
+    "worker_pod_count": None,
+    "kubernetes_version": None,
+    "worker_actor_capacity": None,
+    "worker_memory_limit_gb": None,
+    "sandbox_class": None,
+}
+
+
+def _log(logs: TextIO | None, msg: str) -> None:
+    """Mirrors runner.tee without importing it, to avoid a circular import."""
+    print(msg, flush=True)
+    if logs is not None:
+        logs.write(msg + "\n")
+        logs.flush()
+
+
+def _load_kube_config(logs: TextIO | None = None) -> bool:
+    """Loads in-cluster credentials, falling back to a local kubeconfig."""
+    try:
+        config.load_incluster_config()
+        return True
+    except config.ConfigException:
+        pass
+    try:
+        config.load_kube_config()
+        return True
+    except config.ConfigException as e:
+        _log(logs, f"Notice: no Kubernetes credentials available: {e}")
+        return False
+
+
+def _list_worker_pods(
+    v1: client.CoreV1Api, logs: TextIO | None = None
+) -> list[Any] | None:
+    """Lists the live pods of the worker pool.
+
+    The pool lives in one namespace by convention and the `WorkerPool` CRD is
+    namespaced, so this is a single scoped read. The listing is filtered
+    server-side by label and served from the watch cache. Use
+    --no-cluster-facts to skip discovery entirely.
+
+    Returns None only when the read failed. An empty list is a reading: the
+    namespace holds no live worker pods.
+    """
+    try:
+        pods = v1.list_namespaced_pod(
+            namespace=WORKER_POOL_NAMESPACE,
+            label_selector=WORKER_POOL_LABEL,
+            resource_version="0",
+            _request_timeout=API_TIMEOUT_SECONDS,
+        ).items
+        return [p for p in pods if p.status.phase in LIVE_POD_PHASES]
+    except Exception as e:
+        # An ApiException prints its whole HTTP response, so log the reason on
+        # its own. Anything without one logs itself.
+        reason = getattr(e, "reason", e)
+        _log(logs,
+             f"Notice: could not list pods in {WORKER_POOL_NAMESPACE}: {reason}")
+        return None
+
+
+def _joined(values: set[Any]) -> str | None:
+    """A single value, or a mixed pool's values sorted and comma-joined."""
+    return ",".join(str(v) for v in sorted(values)) or None
+
+
+def _max_actors(args: list[str]) -> int | None:
+    """The --max-actors value of a worker command line, else the default.
+
+    Returns None when the flag is present but its value is not an integer.
+    """
+    for i, arg in enumerate(args):
+        value = None
+        if arg.startswith("--max-actors="):
+            value = arg.split("=", 1)[1]
+        elif arg == "--max-actors" and i + 1 < len(args):
+            value = args[i + 1]
+        if value is not None:
+            try:
+                return int(value)
+            except ValueError:
+                return None
+    return WORKER_DEFAULT_MAX_ACTORS
+
+
+def _worker_container_facts(
+    pods: list[Any], logs: TextIO | None = None
+) -> dict[str, str | None]:
+    """Reads the capacity and sandbox class each worker pod declares.
+
+    A worker reports its capacity as --max-actors and its container memory
+    limit. With no memory limit set the worker is bounded by its node instead,
+    so the limit stays None.
+
+    Each fact is read on its own, so a malformed value skips only that value
+    and leaves the other facts intact.
+    """
+    capacities: set[int] = set()
+    memory_gb: set[float] = set()
+    sandbox_classes: set[str] = set()
+    # Logged once rather than per pod, so a large pool does not flood the log.
+    unreadable: set[str] = set()
+    for p in pods:
+        for c in p.spec.containers or []:
+            if c.name != WORKER_CONTAINER:
+                continue
+            capacity = _max_actors(c.args or [])
+            if capacity is None:
+                unreadable.add("--max-actors")
+            else:
+                capacities.add(capacity)
+            limits = (c.resources.limits if c.resources else None) or {}
+            if "memory" in limits:
+                try:
+                    # GiB, the same as allocatable_ram_gb.
+                    memory_gb.add(round(
+                        int(parse_quantity(limits["memory"])) / (1024**3), 2))
+                except ValueError:
+                    unreadable.add(f"memory limit {limits['memory']!r}")
+            match = SANDBOX_CLASS_IMAGE.search(c.image or "")
+            if match:
+                sandbox_classes.add(match.group(1))
+    if unreadable:
+        _log(logs, "Notice: skipped unreadable worker container values: "
+             + ", ".join(sorted(unreadable)))
+    return {
+        "worker_actor_capacity": _joined(capacities),
+        "worker_memory_limit_gb": _joined(memory_gb),
+        "sandbox_class": _joined(sandbox_classes),
+    }
+
+
+def get_cluster_hardware_facts(logs: TextIO | None = None) -> dict[str, Any]:
+    """Reads the worker pool size, the capacity and Kubernetes version of the
+    nodes it runs on, and what each worker pod declares.
+
+    Capacity is scoped to the nodes carrying worker pods, so a cluster that
+    keeps its infrastructure on a separate pool does not count that pool's
+    cores and memory against the density frontiers.
+
+    Never raises: a trial must still publish its results when the cluster is
+    unreadable, so any failure leaves the affected facts as None.
+    """
+    facts: dict[str, Any] = dict(EMPTY_FACTS)
+    if not _load_kube_config(logs):
+        return facts
+
+    v1 = client.CoreV1Api()
+
+    pods = _list_worker_pods(v1, logs)
+
+    if pods is None:
+        # Without a pod set there is no node set, so capacity stays unmeasured
+        # rather than falling back to every node in the cluster.
+        return facts
+
+    facts["worker_pod_count"] = len(pods)
+
+    # Malformed values are skipped inside; this guards an unexpected pod shape.
+    try:
+        facts.update(_worker_container_facts(pods, logs))
+    except Exception as e:
+        _log(logs, f"Notice: could not read worker container specs: {e}")
+
+    try:
+        # A Pending pod may not be scheduled yet, so it counts toward the pool
+        # size without contributing a node.
+        worker_nodes = {p.spec.node_name for p in pods if p.spec.node_name}
+        # resource_version="0" is served from the apiserver's watch cache
+        # rather than etcd, avoiding a quorum read on large clusters.
+        nodes = v1.list_node(
+            resource_version="0", _request_timeout=API_TIMEOUT_SECONDS
+        ).items
+        node_count = 0
+        total_cores = 0.0
+        total_ram_bytes = 0
+        machine_types = set()
+        versions = set()
+        for node in nodes:
+            metadata = node.metadata
+            if metadata is None or metadata.name not in worker_nodes:
+                continue
+            node_count += 1
+            allocatable = node.status.allocatable or {}
+            total_cores += float(parse_quantity(allocatable["cpu"]))
+            total_ram_bytes += int(parse_quantity(allocatable["memory"]))
+            machine_type = (metadata.labels or {}).get(MACHINE_TYPE_LABEL)
+            if machine_type:
+                machine_types.add(machine_type)
+            if node.status.node_info and node.status.node_info.kubelet_version:
+                versions.add(node.status.node_info.kubelet_version)
+        facts["node_count"] = node_count
+        facts["allocatable_cores"] = round(total_cores, 2)
+        # GiB, as the apiserver and kubectl quote it.
+        facts["allocatable_ram_gb"] = round(total_ram_bytes / (1024**3), 2)
+        # Kept so results stay comparable across hardware changes. A mixed pool
+        # is a sorted comma-joined list rather than one node picked at random.
+        facts["machine_type"] = _joined(machine_types)
+        # The worker nodes' Kubernetes version, e.g. v1.33.5.
+        facts["kubernetes_version"] = _joined(versions)
+    except Exception as e:
+        reason = getattr(e, "reason", e)
+        _log(logs, f"Notice: could not read node capacity: {reason}")
+
+    return facts
+
+
+def append_trial_summary(
+    jsonl_path: Path,
+    stats_csv: Path,
+    stats_history_csv: Path,
+    args: argparse.Namespace,
+    data_ts: str,
+    facts: dict[str, Any],
+    logs: TextIO | None = None,
+    run_start: int | None = None,
+    run_end: int | None = None,
+) -> None:
+    # Locust's own User Count samples. The -u flag is a request; under a custom
+    # load shape what actually ran is whatever the shape asked for.
+    observed: list[float] = []
+    if stats_history_csv.exists():
+        try:
+            with open(stats_history_csv, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    if row.get("Name", "") not in ("", "Aggregated", "Total"):
+                        continue
+                    try:
+                        u = float(row.get("User Count", ""))
+                    except (TypeError, ValueError):
+                        continue
+                    if u > 0:
+                        observed.append(u)
+        except Exception as e:
+            _log(logs, f"Notice: could not read user counts: {e}")
+            # A read that threw partway leaves a truncated sample behind, and
+            # a truncated sample understates the peak without looking wrong.
+            observed = []
+
+    # One ratio per row Locust reported, so a test's own operation names carry
+    # through. Absent when the test has no such row, null when it ran nothing.
+    failure_ratios: dict[str, float | None] = {"aggregate_failure_ratio": None}
+    create_actor_successes: int | None = None
+    delete_actor_requests = 0
+    retired_task_requests = 0
+    if stats_csv.exists():
+        try:
+            with open(stats_csv, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    name = row.get("Name", "")
+                    reqs = row.get("Request Count")
+                    fails = row.get("Failure Count")
+                    # Both columns required so a missing one is not read as zero.
+                    if not name or reqs is None or fails is None:
+                        continue
+                    requests, failures = int(reqs), int(fails)
+                    ratio = round(failures / requests, 4) if requests else None
+                    if name == "Aggregated":
+                        failure_ratios["aggregate_failure_ratio"] = ratio
+                        continue
+                    if name == "CreateActor":
+                        create_actor_successes = max(requests - failures, 0)
+                    elif name == "DeleteActor":
+                        delete_actor_requests = requests
+                    elif name == "TaskWallClock":
+                        retired_task_requests = requests
+                    key = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+                    key = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", key)
+                    key = re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_")
+                    failure_ratios[f"{key}_failure_ratio"] = ratio
+        except Exception as e:
+            _log(logs, f"Notice: could not parse {stats_csv}: {e}")
+            failure_ratios = {"aggregate_failure_ratio": None}
+            create_actor_successes = None
+            delete_actor_requests = 0
+            retired_task_requests = 0
+    else:
+        _log(logs, f"Notice: {stats_csv} not found; failure ratios unknown")
+
+    # The flag stands in only when no sample was read at all.
+    peak_users = max(observed) if observed else args.users
+
+    # Locust counts VUs, not actors, and one VU drives --actors-per-user of them.
+    per_user = args.actors_per_user or 1
+    peak_actors = peak_users * per_user
+
+    # Locust's User Count counts spawned users even when CreateActor
+    # fails or broken actors are deleted during the run. When the test records
+    # CreateActor in stats.csv, cap by the actors still alive at the end of the
+    # run (stats.csv is written before the worker's shutdown DeleteActor sweep).
+    # In sweperf, each completed TaskWallClock retires its actor with
+    # DeleteActor before starting a fresh one, so only unretired deletes count
+    # as failed/wedged actors.
+    if create_actor_successes is not None:
+        unretired_deletes = max(delete_actor_requests - retired_task_requests, 0)
+        live_actors = max(create_actor_successes - unretired_deletes, 0)
+        peak_actors = min(peak_actors, live_actors)
+
+    node_count = facts.get("node_count")
+    cores = facts.get("allocatable_cores")
+    ram_gb = facts.get("allocatable_ram_gb")
+    pod_count = facts.get("worker_pod_count")
+
+    actors_per_node = round(peak_actors / node_count, 2) if node_count else None
+    actors_per_vcpu = round(peak_actors / cores, 2) if cores else None
+    actors_per_gb_ram = round(peak_actors / ram_gb, 2) if ram_gb else None
+
+    # Actors per pod across every sample, ramp-up included. Under a load shape
+    # there is no one target to measure steadiness against, so the
+    # distribution covers the whole run.
+    actors_per_pod_p50, actors_per_pod_p90, actors_per_pod_p99 = None, None, None
+    if observed and pod_count:
+        ratios = sorted(
+            round(min(u * per_user, peak_actors) / pod_count, 4)
+            for u in observed
+        )
+        n = len(ratios)
+        actors_per_pod_p50 = round(ratios[int(n * 0.50)], 2)
+        actors_per_pod_p90 = round(ratios[min(int(n * 0.90), n - 1)], 2)
+        actors_per_pod_p99 = round(ratios[min(int(n * 0.99), n - 1)], 2)
+
+    # Whether workers hosted more than one actor at once (a multi-actor
+    # worker), going by the median actors per pod.
+    multi_actor_worker = (
+        None if actors_per_pod_p50 is None
+        else str(actors_per_pod_p50 > 1).lower()
+    )
+
+    measurements = {
+        **{k: facts.get(k) for k in EMPTY_FACTS},
+        # Unix seconds bracketing the run, for finding its server-side metrics
+        # in Cloud Monitoring.
+        "run_start": run_start,
+        "run_end": run_end,
+        # Caller-supplied --metadata, one key each so values stay plain strings.
+        **{
+            f"metadata_{k}": v if isinstance(v, str) else json.dumps(v)
+            for k, v in (getattr(args, "metadata", None) or {}).items()
+            if v is not None
+        },
+        "multi_actor_worker": multi_actor_worker,
+        "actors_per_node": actors_per_node,
+        "actors_per_vcpu": actors_per_vcpu,
+        "actors_per_gb_ram": actors_per_gb_ram,
+        "actors_per_pod_p50": actors_per_pod_p50,
+        "actors_per_pod_p90": actors_per_pod_p90,
+        "actors_per_pod_p99": actors_per_pod_p99,
+        **failure_ratios,
+    }
+
+    summary_entry = {
+        "timestamp": data_ts,
+        "tag": args.tag,
+        "test_name": args.name,
+        "metric": "trial_summary",
+        "measurements": {
+            k: (str(v) if v is not None else None)
+            for k, v in measurements.items()
+        },
+    }
+    with open(jsonl_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(summary_entry) + "\n")
+    _log(logs, f"Appended trial_summary to {jsonl_path}")
+
+
+def snapshot_worker_pods(
+    logs: TextIO | None = None,
+) -> dict[str, dict[str, Any]] | None:
+    """Per worker pod uid: worker restarts, last exit OOMKilled, evicted.
+
+    An evicted pod is usually gone by now; read_evicted_pods covers it. None if
+    the read failed.
+    """
+    if not _load_kube_config(logs):
+        return None
+    try:
+        # Consistent read, so the snapshot right after the run is exact.
+        pods = client.CoreV1Api().list_namespaced_pod(
+            namespace=WORKER_POOL_NAMESPACE,
+            label_selector=WORKER_POOL_LABEL,
+            _request_timeout=API_TIMEOUT_SECONDS,
+        ).items
+    except Exception as e:
+        reason = getattr(e, "reason", e)
+        _log(logs,
+             f"Notice: could not list pods in {WORKER_POOL_NAMESPACE}: {reason}")
+        return None
+    out: dict[str, dict[str, Any]] = {}
+    for pod in pods:
+        # By name, so a sidecar can't skew it; a Pending pod may have none yet.
+        cs = next((c for c in pod.status.container_statuses or []
+                   if c.name == WORKER_CONTAINER), None)
+        last = cs.last_state.terminated if cs and cs.last_state else None
+        out[pod.metadata.uid] = {
+            "restarts": (cs.restart_count or 0) if cs else 0,
+            "last_oomkilled": bool(last and last.reason == "OOMKilled"),
+            "evicted": pod.status.reason == "Evicted",
+        }
+    return out
+
+
+def read_evicted_pods(
+    since_ts: int,
+    logs: TextIO | None = None,
+) -> set[str] | None:
+    """Uids of pods evicted at or after since_ts, from Evicted events.
+
+    The controller deletes an evicted worker pod right away, so the next
+    snapshot no longer has it, but its event lives for about an hour. Events
+    cannot be selected by label, so this reads every pod's in the namespace,
+    which holds only workers. None if the read failed.
+    """
+    if not _load_kube_config(logs):
+        return None
+    try:
+        events = client.CoreV1Api().list_namespaced_event(
+            namespace=WORKER_POOL_NAMESPACE,
+            field_selector="reason=Evicted,involvedObject.kind=Pod",
+            _request_timeout=API_TIMEOUT_SECONDS,
+        ).items
+    except Exception as e:
+        reason = getattr(e, "reason", e)
+        _log(logs,
+             f"Notice: could not list events in {WORKER_POOL_NAMESPACE}: {reason}")
+        return None
+    uids: set[str] = set()
+    for ev in events:
+        # Kubelet sets last_timestamp; events.k8s.io writers set event_time.
+        t = ev.last_timestamp or ev.event_time or ev.metadata.creation_timestamp
+        if t and t.timestamp() >= since_ts and ev.involved_object.uid:
+            uids.add(ev.involved_object.uid)
+    return uids
+
+
+def diff_worker_pods(
+    before: dict[str, dict[str, Any]] | None,
+    after: dict[str, dict[str, Any]] | None,
+    evicted_uids: set[str] | None,
+) -> dict[str, int | None]:
+    """Worker restarts, OOMKilled pods, evictions and lost pods over the run.
+
+    `worker_oomkilled_pods` counts pods, not kills: lastState keeps only the
+    last exit. A node OOM can also restart a worker. `evicted` is kubelet
+    eviction or admission rejection, not a kernel OOM kill: pods evicted in the
+    run, from events and from the snapshots, once per uid. `worker_pods_lost`
+    is pods gone by the second snapshot, for any reason. A field is None when
+    its source failed.
+    """
+    restarts: int | None = None
+    oomkilled: int | None = None
+    lost: int | None = None
+    status_evicted: set[str] = set()
+    if before is not None and after is not None:
+        grown = oom = 0
+        for uid, now in after.items():
+            was = before.get(uid, {"restarts": 0, "evicted": False})
+            grew = max(now["restarts"] - was["restarts"], 0)
+            grown += grew
+            oom += bool(grew and now["last_oomkilled"])
+            if now["evicted"] and not was["evicted"]:
+                status_evicted.add(uid)
+        restarts, oomkilled = grown, oom
+        lost = len(before.keys() - after.keys())
+    evicted = None if evicted_uids is None else len(evicted_uids | status_evicted)
+    return {"worker_restarts": restarts, "worker_oomkilled_pods": oomkilled,
+            "evicted": evicted, "worker_pods_lost": lost}

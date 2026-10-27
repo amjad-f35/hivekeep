@@ -1,0 +1,177 @@
+# The interactive locust benchmark: one pod, two containers from the
+# hivekeep-bench-locust image (locust/Dockerfile) sharing a network namespace.
+#   * locust-master: locust with the class's locustfile, tests/<class>.py.
+#     The locustfile declares the user class by name and adds
+#     /loadgen-config to the web UI (common/loadgen_config.py), from which
+#     the worker reads the knobs typed into the form. Web UI on :8089, worker
+#     connections on :5557, the Python classes' metrics on :8000.
+#   * locust-worker: the Hivekeep load generator. It joins the master on
+#     localhost:5557, runs the selected class, re-reads /loadgen-config on
+#     every spawn message, and serves its request metrics at /metrics on
+#     :8001.
+# locust/deploy.sh fills in the ${...} values.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+  namespace: benchmarking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: locust
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: locust
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+    spec:
+      containers:
+      - name: locust-master
+        image: ${LOCUST_IMAGE}
+        imagePullPolicy: ${LOCUST_IMAGE_PULL_POLICY}
+        args:
+        - "-m"
+        - "locust"
+        - "-f"
+        - "/app/tests/${BENCHMARK_USER_CLASS}.py"
+        - "--master"
+        - "--master-bind-host=0.0.0.0"
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "${OTLP_ENDPOINT}"
+        # Default of --agentsession-script-file, served to the worker.
+        # locust/deploy.sh --agentsession-script FILE sets it to where the
+        # agentsession-script ConfigMap is mounted in the worker.
+        - name: LOCUST_AGENTSESSION_SCRIPT_FILE
+          value: "${AGENTSESSION_SCRIPT_FILE}"
+        ports:
+        - name: prometheus
+          containerPort: 8000
+          protocol: TCP
+        - name: web
+          containerPort: 8089
+          protocol: TCP
+        - name: zmq
+          containerPort: 5557
+          protocol: TCP
+        # The Python user classes call hivekeep-api with this pod's identity.
+        volumeMounts:
+        - name: servicedns-ca
+          mountPath: /run/servicedns.podcert.hivekeep.io
+          readOnly: true
+        - name: podidentity
+          mountPath: /run/podidentity.podcert.hivekeep.io
+          readOnly: true
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+      - name: locust-worker
+        image: ${LOCUST_IMAGE}
+        imagePullPolicy: ${LOCUST_IMAGE_PULL_POLICY}
+        command: ["/app/locust-worker"]
+        args:
+        - "--prometheus-addr=:8001"
+        # A literal IPv4 address: the master binds 0.0.0.0, and localhost
+        # may resolve to ::1 first.
+        - "--master-host=127.0.0.1"
+        - "--master-port=5557"
+        # Read the knobs from http://127.0.0.1:8089/loadgen-config on every
+        # spawn message and every 10s.
+        - "--master-web-port=8089"
+        - "--user-class=${BENCHMARK_USER_CLASS}"
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "${OTLP_ENDPOINT}"
+        # Checksum of an operator-supplied agent-session script. The worker
+        # does not read it; it changes the pod template so a new script rolls
+        # the pod.
+        - name: AGENTSESSION_SCRIPT_SHA
+          value: "${AGENTSESSION_SCRIPT_SHA}"
+        ports:
+        - name: worker-prom
+          containerPort: 8001
+          protocol: TCP
+        volumeMounts:
+        - name: servicedns-ca
+          mountPath: /run/servicedns.podcert.hivekeep.io
+          readOnly: true
+        - name: podidentity
+          mountPath: /run/podidentity.podcert.hivekeep.io
+          readOnly: true
+        # The agent-session script given to locust/deploy.sh, if any; absent,
+        # the class runs a built-in script and this is an empty directory.
+        - name: agentsession-script
+          mountPath: /etc/agentsession
+          readOnly: true
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "256Mi"
+      volumes:
+      - name: agentsession-script
+        configMap:
+          name: agentsession-script
+          optional: true
+      # Verifies hivekeep-api's and the gate router's serving certificates.
+      - name: servicedns-ca
+        projected:
+          sources:
+          - clusterTrustBundle:
+              signerName: servicedns.podcert.hivekeep.io/identity
+              labelSelector:
+                matchLabels:
+                  podcert.hivekeep.io/canarying: live
+              path: trust-bundle.pem
+      # The benchmark's client identity, presented over mTLS to hivekeep-api
+      # and the gate router.
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              signerName: podidentity.podcert.hivekeep.io/identity
+              keyType: ECDSAP256
+              credentialBundlePath: credential-bundle.pem
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: locust
+  namespace: benchmarking
+spec:
+  selector:
+    app: locust
+  ports:
+  - name: web
+    protocol: TCP
+    port: 8089
+    targetPort: 8089
+  - name: prometheus
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+  - name: worker-prom
+    protocol: TCP
+    port: 8001
+    targetPort: 8001
+---
+# Lets the load generator read the EndpointSlices it balances hivekeep-api
+# calls over.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: benchmarking-permissions
+  namespace: hivekeep-system
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: benchmarking
+roleRef:
+  kind: Role
+  name: keeper-endpointslices
+  apiGroup: rbac.authorization.k8s.io
