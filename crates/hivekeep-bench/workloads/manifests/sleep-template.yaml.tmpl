@@ -1,0 +1,22 @@
+# ActorTemplate (protobuf JSON form of the API's ActorTemplate) for the sleep
+# workload: an idle process, for measuring the lifecycle alone.
+metadata:
+  hive: benchmark-workloads
+  name: sleep
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: sleep
+  image: busybox@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
+  command: ["/bin/sleep", "1000000"]
+# Keep memory small: whatever the guest caches ends up in every memory
+# snapshot, so a larger guest suspends and resumes more slowly. microvm needs
+# at least 128Mi.
+resources:
+  limits:
+    cpuMillicores: "${ACTOR_CPU_MILLICORES}"
+    memoryBytes: "${ACTOR_MEMORY_BYTES}"
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/sleep/

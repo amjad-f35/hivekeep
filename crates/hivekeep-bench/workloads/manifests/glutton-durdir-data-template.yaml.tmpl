@@ -1,0 +1,36 @@
+# ActorTemplate for the DurdirUser load class: a suspend uploads only the
+# durable directory (volume-scope snapshot), so every resume is a cold boot.
+metadata:
+  hive: benchmark-workloads
+  name: glutton-durdir-data
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: glutton
+  image: "${GLUTTON_IMAGE}"
+  command:
+  - "/app/glutton"
+  - "--grpc-listen-addr=:80"
+  - "--metrics-listen-addr=:9090"
+  - "--data-dir=/var/lib/glutton"
+  - "--mode=http"
+  # A cold boot: without the probe the router could reach the sandbox before
+  # glutton listens.
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+  volumeMounts:
+  - name: data
+    mountPath: /var/lib/glutton
+volumes:
+- name: data
+  durableDir: {}
+resources:
+  limits:
+    cpuMillicores: "${ACTOR_CPU_MILLICORES}"
+    memoryBytes: "${ACTOR_MEMORY_BYTES}"
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_VOLUMES
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/glutton-durdir-data/

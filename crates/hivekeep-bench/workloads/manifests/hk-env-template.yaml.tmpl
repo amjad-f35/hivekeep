@@ -1,0 +1,24 @@
+# ActorTemplate for the HkEnvUser load class: a sandbox guest serving the
+# guest process and file API on port 80. HK_ENV_IMAGE names the guest image
+# (no default; see workloads/deploy.sh).
+metadata:
+  hive: benchmark-workloads
+  name: hk-env
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: guest
+  image: "${HK_ENV_IMAGE}"
+  command: ${HK_ENV_COMMAND}
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+resources:
+  limits:
+    cpuMillicores: "${ACTOR_CPU_MILLICORES}"
+    memoryBytes: "${ACTOR_MEMORY_BYTES}"
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/hk-env/

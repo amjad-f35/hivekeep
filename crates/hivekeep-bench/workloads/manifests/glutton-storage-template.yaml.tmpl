@@ -1,0 +1,45 @@
+# ActorTemplate for glutton on an external volume of StorageClass
+# ${STORAGE_CLASS_NAME}; run DurdirUser against it with the durdir template
+# knob set to glutton-storage.
+metadata:
+  hive: benchmark-workloads
+  name: glutton-storage
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+volumes:
+- name: external-storage
+  external:
+    template:
+      capacityBytes: 1073741824 # 1Gi
+      storageClassName: ${STORAGE_CLASS_NAME}
+containers:
+- name: glutton-storage
+  image: "${GLUTTON_IMAGE}"
+  command:
+  - "/app/glutton"
+  - "--grpc-listen-addr=:80"
+  - "--metrics-listen-addr=:9090"
+  - "--data-dir=/mnt/storage"
+  - "--sync-writes"
+  - "--readyz-require-writable-data-dir"
+  - "--mode=http"
+  volumeMounts:
+  - name: external-storage
+    mountPath: /mnt/storage
+  env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "${OTLP_ENDPOINT}"
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: "service.name=glutton-storage-actor"
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+resources:
+  limits:
+    cpuMillicores: "${ACTOR_CPU_MILLICORES}"
+    memoryBytes: "${ACTOR_MEMORY_BYTES}"
+snapshotConfig:
+  onCommit: SNAPSHOT_CONTENT_SCOPE_FULL
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/glutton-storage/

@@ -1,0 +1,32 @@
+# The WorkerPool the benchmark Actors run on. The ActorTemplates are not
+# Kubernetes objects: workloads/deploy.sh creates them through the Hivekeep
+# API from the *-template.yaml.tmpl files next to this one.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: benchmark-workloads
+
+---
+
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: benchmark-worker
+  namespace: benchmark-workloads
+  labels:
+    workload: benchmark-worker
+spec:
+  replicas: ${WORKER_COUNT}
+  sandboxClasses:
+  - name: ${SANDBOX_CLASS}
+  workerImage: ${WORKER_IMAGE}
+  template:
+    # gvisor and microvm workers may share nodes tainted
+    # hivekeep.io/sandboxClass=shared.
+    tolerations:
+    - key: hivekeep.io/sandboxClass
+      operator: Equal
+      value: shared
+      effect: NoSchedule
+    ${WORKER_RESOURCES}

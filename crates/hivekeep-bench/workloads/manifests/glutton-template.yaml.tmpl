@@ -1,0 +1,39 @@
+# ActorTemplate for the glutton workload: the GluttonUser, SpawnUser,
+# ResumePausedUser and AgentSessionUser load classes drive it.
+metadata:
+  hive: benchmark-workloads
+  name: glutton
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: glutton
+  image: "${GLUTTON_IMAGE}"
+  # The sandbox accepts inbound traffic on port 80 only, and the gate router
+  # forwards HTTP/1.1, so glutton serves its HTTP routes there.
+  command:
+  - "/app/glutton"
+  - "--grpc-listen-addr=:80"
+  - "--metrics-listen-addr=:9090"
+  - "--data-dir=/tmp/glutton"
+  - "--mode=http"
+  # Nothing gives an Actor container an OTLP endpoint on its own; without
+  # this value its telemetry goes nowhere.
+  env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "${OTLP_ENDPOINT}"
+  # Keeps the Actors' telemetry apart from the control plane's.
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: "service.name=glutton-actor"
+  # Holds ResumeActor until port 80 answers.
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+resources:
+  limits:
+    cpuMillicores: "${ACTOR_CPU_MILLICORES}"
+    memoryBytes: "${ACTOR_MEMORY_BYTES}"
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/glutton/

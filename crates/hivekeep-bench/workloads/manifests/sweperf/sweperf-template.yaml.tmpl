@@ -1,0 +1,33 @@
+# ActorTemplate for one SweperfUser task: a recorded coding trajectory
+# replayed inside the sandbox. workloads/deploy.sh renders one per line of
+# tasks.tsv, filling the SWEPERF_* placeholders from it.
+metadata:
+  hive: benchmark-workloads
+  name: sweperf-${SWEPERF_TASK}
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: ${SWEPERF_CONTAINER}
+  # Pin by digest: trajectory images are rebuilt in place under one tag.
+  image: "${SWEPERF_IMAGE}"
+  command:
+  - "python3"
+  - "/replay.py"
+  - "/trace.json"
+  env:
+  - name: SWEPERF_DISABLE_INTERNAL_SLEEP
+    value: "1"
+  # For reference only: the load class reads the step count from its own
+  # knob, so run this template with that knob at ${SWEPERF_STEPS}.
+  - name: SWEPERF_TOTAL_STEPS
+    value: "${SWEPERF_STEPS}"
+# Enough for the test runs the traces replay. The CPU limit bounds the
+# measured execution time, so keep it fixed across runs.
+resources:
+  limits:
+    cpuMillicores: 2000
+    memoryBytes: 4294967296 # 4Gi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/sweperf-${SWEPERF_TASK}/

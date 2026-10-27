@@ -1,0 +1,34 @@
+# ActorTemplate like glutton-durdir-data, but snapshotting memory as well as
+# the durable directory.
+metadata:
+  hive: benchmark-workloads
+  name: glutton-durdir-full
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: glutton
+  image: "${GLUTTON_IMAGE}"
+  command:
+  - "/app/glutton"
+  - "--grpc-listen-addr=:80"
+  - "--metrics-listen-addr=:9090"
+  - "--data-dir=/var/lib/glutton"
+  - "--mode=http"
+  wakeupProbe:
+    httpGet:
+      path: /readyz
+      port: 80
+  volumeMounts:
+  - name: data
+    mountPath: /var/lib/glutton
+volumes:
+- name: data
+  durableDir: {}
+resources:
+  limits:
+    cpuMillicores: "${ACTOR_CPU_MILLICORES}"
+    memoryBytes: "${ACTOR_MEMORY_BYTES}"
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/glutton-durdir-full/

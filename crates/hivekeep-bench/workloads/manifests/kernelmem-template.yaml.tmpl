@@ -1,0 +1,21 @@
+# ActorTemplate filling kernel memory (dentry cache and sleeping processes),
+# for sizing kernel-state snapshots. Not deployed by default:
+# WORKLOAD_TEMPLATES="kernelmem ...".
+metadata:
+  hive: benchmark-workloads
+  name: kernelmem
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: kernelmem
+  image: "${STRESS_IMAGE}"
+  command: ["sh", "-c", "find /; for i in $(seq 50000); do sleep 10000 & done; sleep 10000"]
+# 50000 sleeping processes need roughly 6.3 GiB of kernel state.
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 8589934592 # 8Gi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/kernelmem/

@@ -1,0 +1,21 @@
+# ActorTemplate holding 1 GiB of user memory, for sizing memory snapshots.
+# Not deployed by default: WORKLOAD_TEMPLATES="usermem ...". The memory limit
+# is fixed because the workload allocates far more than the default.
+metadata:
+  hive: benchmark-workloads
+  name: usermem
+workerSelector:
+  matchLabels:
+    workload: benchmark-worker
+containers:
+- name: usermem
+  image: "${STRESS_IMAGE}"
+  command: ["stress", "--vm", "1", "--vm-bytes", "1G", "--vm-keep", "--vm-hang", "0"]
+# The 1 GiB allocation plus headroom.
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 1610612736 # 1536Mi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: ${SNAPSHOT_BASE_URI}/benchmark-workloads/usermem/

@@ -1,0 +1,6 @@
+# task	steps	image (empty: ${SWEPERF_IMAGE_REPO}/sweperf:<task>)
+astropy-7336	21
+django-11099	15
+matplotlib-20826	49
+sphinx-8638	64
+sympy-13647	33
