@@ -8,9 +8,14 @@
 pub mod admin;
 pub mod durfmt;
 pub mod error;
+pub mod fake_keeper;
 pub mod httpio;
+pub mod load;
 pub mod pki;
 pub mod procstats;
 pub mod report;
+pub mod sandbox_net;
+pub mod sink;
+pub mod workerhost;
 
 pub use error::{Error, Result};
