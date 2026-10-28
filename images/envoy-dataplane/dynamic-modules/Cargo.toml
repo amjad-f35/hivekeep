@@ -1,0 +1,30 @@
+# Envoy dynamic modules loaded by the Envoy dataplane image. This is its own
+# workspace (not a member of the repository workspace): the Envoy SDK is a
+# git dependency that needs libclang to build, and only the image build needs
+# it.
+#
+# egress-policy-core holds the SDK-free policy logic and its tests, so it can
+# be tested without the SDK; egress-policy is the cdylib Envoy loads.
+[workspace]
+resolver = "2"
+members = ["egress-policy-core", "egress-policy"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+# The SDK must not be newer than the Envoy binary in the image (see the
+# Dockerfile): a module built against newer ABI symbols fails to load. This
+# revision is the v1.39.1 release commit.
+envoy-proxy-dynamic-modules-rust-sdk = { git = "https://github.com/envoyproxy/envoy", rev = "b579d07d3ad7ee11d32b105e91a5a39ad24718d7" }
+hivekeep-egress-policy-core = { path = "egress-policy-core" }
+rapidhash = "4.5.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1

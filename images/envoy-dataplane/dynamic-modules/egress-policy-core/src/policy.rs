@@ -1,0 +1,118 @@
+//! The SNI rule set of one actor connection, and its content hash.
+
+use std::hash::{Hash, Hasher};
+use std::rc::Rc;
+
+// The "quality" variant: a little slower, better distributed. The hash is
+// the identity of a policy in the store, so collisions matter more than
+// speed here.
+use rapidhash::quality::RapidHasher;
+use serde::Deserialize;
+
+/// What a matching rule does with the connection.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum SniMode {
+    /// Terminate the TLS with a minted leaf and re-originate.
+    Mitm,
+    /// Relay the bytes untouched to the SNI.
+    Passthrough,
+    /// A mode this module does not know; a match on it denies.
+    #[serde(other)]
+    Unknown,
+}
+
+/// One rule: a hostname pattern and what to do on a match.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash)]
+pub struct SniRule {
+    pub pattern: String,
+    pub mode: SniMode,
+}
+
+/// The ordered rules of a connection, most specific first; the first match
+/// decides.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EgressPolicy {
+    pub rules: Vec<SniRule>,
+    /// Content hash of `rules`, filled in by [`EgressPolicy::parse`].
+    #[serde(skip)]
+    pub hash: u64,
+}
+
+impl Hash for EgressPolicy {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.rules.hash(state);
+    }
+}
+
+impl EgressPolicy {
+    /// Builds a policy from rules, computing its hash.
+    pub fn new(rules: Vec<SniRule>) -> Self {
+        let mut p = Self { rules, hash: 0 };
+        p.hash = p.content_hash();
+        p
+    }
+
+    /// Parses the policy JSON the gate sends (`{"rules":[{"pattern":..,
+    /// "mode":..}]}`) and hashes it. `None` for anything malformed.
+    pub fn parse(json: &[u8]) -> Option<Rc<Self>> {
+        let parsed: Self = serde_json::from_slice(json).ok()?;
+        Some(Rc::new(Self::new(parsed.rules)))
+    }
+
+    fn content_hash(&self) -> u64 {
+        let mut h = RapidHasher::default();
+        Hash::hash(self, &mut h);
+        h.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(pattern: &str, mode: SniMode) -> SniRule {
+        SniRule { pattern: pattern.into(), mode }
+    }
+
+    #[test]
+    fn parses_the_gate_json_shape() {
+        let p = EgressPolicy::parse(
+            br#"{"rules":[{"pattern":"api.example.com","mode":"mitm"},{"pattern":"*","mode":"passthrough"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(p.rules, vec![rule("api.example.com", SniMode::Mitm), rule("*", SniMode::Passthrough)]);
+        assert_ne!(p.hash, 0);
+    }
+
+    #[test]
+    fn unknown_modes_parse_as_unknown() {
+        let p = EgressPolicy::parse(br#"{"rules":[{"pattern":"a.test","mode":"bogus"}]}"#).unwrap();
+        assert_eq!(p.rules[0].mode, SniMode::Unknown);
+    }
+
+    #[test]
+    fn rejects_malformed_or_foreign_json() {
+        assert!(EgressPolicy::parse(b"not-json").is_none());
+        assert!(EgressPolicy::parse(b"").is_none());
+        assert!(EgressPolicy::parse(br#"{"allowed_snis":["api.example.com"]}"#).is_none());
+        assert!(EgressPolicy::parse(br#"{"rules":[{"pattern":"a.test"}]}"#).is_none());
+    }
+
+    #[test]
+    fn hash_is_stable_and_content_sensitive() {
+        let json = br#"{"rules":[{"pattern":"api.example.com","mode":"mitm"}]}"#;
+        let a = EgressPolicy::parse(json).unwrap();
+        let b = EgressPolicy::parse(json).unwrap();
+        assert_eq!(a.hash, b.hash);
+        assert_eq!(a, b);
+
+        let c = EgressPolicy::parse(br#"{"rules":[{"pattern":"api.example.com","mode":"passthrough"}]}"#).unwrap();
+        assert_ne!(a.hash, c.hash);
+        // Order is part of the policy: the first match wins.
+        let d = EgressPolicy::new(vec![rule("x.test", SniMode::Mitm), rule("y.test", SniMode::Mitm)]);
+        let e = EgressPolicy::new(vec![rule("y.test", SniMode::Mitm), rule("x.test", SniMode::Mitm)]);
+        assert_ne!(d.hash, e.hash);
+    }
+}

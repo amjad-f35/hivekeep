@@ -1,0 +1,16 @@
+[package]
+name = "hivekeep-envoy-egress-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Envoy resolves `dynamic_module_config.name: envoy_hivekeep_egress_policy`
+# to lib<name>.so on ENVOY_DYNAMIC_MODULES_SEARCH_PATH.
+[lib]
+name = "envoy_hivekeep_egress_policy"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+envoy-proxy-dynamic-modules-rust-sdk = { workspace = true }
+hivekeep-egress-policy-core = { workspace = true }
