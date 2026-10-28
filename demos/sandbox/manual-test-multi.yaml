@@ -1,0 +1,19 @@
+# Worker pool for a manual check of an Actor with two external volumes
+# (hostpath and NFS CSI). Its ActorTemplate is manual-test-multi-template.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hivekeep-manual-test-multi
+---
+apiVersion: hivekeep.io/v1
+kind: WorkerPool
+metadata:
+  name: sandbox-pool
+  namespace: hivekeep-manual-test-multi
+  labels:
+    workload: sandbox
+spec:
+  replicas: 1
+  workerImage: REGISTRY_PLACEHOLDER/hivekeep-sandbox-gvisor:0.1.0
+  sandboxClasses:
+  - name: gvisor

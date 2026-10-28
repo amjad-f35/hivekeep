@@ -1,0 +1,39 @@
+# ActorTemplate for the manual two-volume check: the sandbox workload with one
+# hostpath-CSI and one NFS-CSI external volume. Needs the
+# hivekeep-manual-test-multi hive and both CSI drivers (scripts/csi/).
+# Replace REGISTRY_PLACEHOLDER with your registry before creating it.
+metadata:
+  hive: hivekeep-manual-test-multi
+  name: sandbox-template
+workerSelector:
+  matchLabels:
+    workload: sandbox
+containers:
+- name: sandbox
+  image: REGISTRY_PLACEHOLDER/hivekeep-demo-sandbox:0.1.0
+  env:
+  - name: PORT
+    value: "80"
+  volumeMounts:
+  - name: vol-hostpath
+    mountPath: /hostpath-data
+  - name: vol-nfs
+    mountPath: /nfs-data
+resources:
+  limits:
+    cpuMillicores: 1000
+    memoryBytes: 536870912 # 512Mi
+snapshotConfig:
+  preferredFidelity: SNAPSHOT_FIDELITY_MEMORY
+  storageLocation: gs://hivekeep-snapshots/hivekeep-manual-test-multi/
+volumes:
+- name: vol-hostpath
+  external:
+    template:
+      capacityBytes: 1073741824 # 1Gi
+      storageClassName: csi-hostpath-sc
+- name: vol-nfs
+  external:
+    template:
+      capacityBytes: 1073741824 # 1Gi
+      storageClassName: csi-nfs-sc
