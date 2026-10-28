@@ -1,0 +1,18 @@
+# The csi-nfs-sc StorageClass used by the external-volume demos, the e2e
+# tests and the benchmarks. It is backed by the development NFS server that
+# `hivekeep-setup setup csi --setup-csi=nfs` deploys
+# (crates/hivekeep-setup/manifests/csi/nfs-server.yaml). Derived from the
+# upstream driver's example StorageClass. The share is "/" because the server
+# exports a single directory with fsid=0, which NFSv4 presents as the root.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-nfs-sc
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: nfs-server.default.svc.cluster.local
+  share: /
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+mountOptions:
+  - nfsvers=4.1
