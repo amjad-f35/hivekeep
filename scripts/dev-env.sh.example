@@ -1,0 +1,44 @@
+# shellcheck shell=bash
+# Developer settings for Hivekeep scripts and the installer.
+# Copy to .hivekeep-dev-env.sh at the repository root and adjust. Every value
+# can also be exported in the environment, which wins over this file.
+# Kind installs ignore this file entirely (NO_DEV_ENV is set for them).
+
+export PROJECT_ID="${USER}-hivekeep-dev"
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)' 2>/dev/null || true)"
+export PROJECT_NUMBER
+
+export GCE_REGION=us-west1
+export CLUSTER_LOCATION=us-west1-c
+export NETWORK=default
+export SUBNETWORK=default
+
+export CLUSTER_NAME=hivekeep-poc
+# Kubernetes 1.36 with the v1beta1 pod-certificate APIs enabled (the gcp
+# bootstrap enables them), or 1.37+. Pick a currently offered patch version:
+#   gcloud container get-server-config --zone "${CLUSTER_LOCATION}" --format='value(defaultClusterVersion)'
+export CLUSTER_VERSION=1.36.3-gke.1767000
+export NODE_POOL_NAME=gvisor-pool
+export NODE_POOL_VERSION="${CLUSTER_VERSION}"
+export NODE_MACHINE_TYPE=c3-standard-4
+# Micro-VM workers need nested virtualization on the nodes.
+export ENABLE_NESTED_VIRTUALIZATION=true
+# export BOOT_DISK_SIZE_GB=500
+# export BOOT_DISK_TYPE=hyperdisk-balanced
+
+# Leave empty to use the kubeconfig's current context.
+export KUBECTL_CONTEXT=
+
+export BUCKET_NAME="hivekeep-snapshots-${PROJECT_ID}"
+export SNAPSHOT_LOCATION="gs://${BUCKET_NAME}/"
+export SNAPSHOT_TRANSFER_GSA_NAME=hivekeep-snapshot-transfer
+
+# Where source builds push images.
+export HK_BUILD_REPO="gcr.io/${PROJECT_ID}/hivekeep"
+export HK_BUILD_PLATFORMS=linux/amd64
+
+# Credential provider for egress credential injection, as JSON (required):
+#   {"name":"k8s.io"}      the bundled Kubernetes Secrets provider
+#   {"enabled":false}      no credential injection
+#   {"name":"<p>","address":"<host>:<port>"}  a provider you run yourself
+export HK_CREDENTIAL_PROVIDER='{"name":"k8s.io"}'
