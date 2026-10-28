@@ -3,7 +3,6 @@ name = "hivekeep-demo-sandbox"
 description = "Sandbox demo: a command-execution workload and an interactive client that resumes, drives and suspends it."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

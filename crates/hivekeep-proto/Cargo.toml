@@ -3,7 +3,6 @@ name = "hivekeep-proto"
 description = "Protobuf and gRPC definitions for Hivekeep."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

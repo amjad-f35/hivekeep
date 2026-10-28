@@ -3,7 +3,6 @@ name = "hivekeep-node"
 description = "Node-agent seams shared by the Hivekeep keeper, its pluggable backends and controllers: request contexts, clocks, work queues, node paths and the image, object-store and cluster-view traits."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

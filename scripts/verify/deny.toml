@@ -19,3 +19,5 @@ allow = [
   "BSL-1.0",
 ]
 confidence-threshold = 0.9
+# Hivekeep's own crates are unpublished and carry no license field.
+private = { ignore = true }

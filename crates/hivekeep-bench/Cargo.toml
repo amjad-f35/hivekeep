@@ -3,7 +3,6 @@ name = "hivekeep-bench"
 description = "Hivekeep load and benchmark tooling: the glutton workload, the locust load generator, the egress benchmark and the fake data plane."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

@@ -3,7 +3,6 @@ name = "hivekeep-bench-tunnel"
 description = "Measures the CPU and memory the worker tunnel costs as load rises, with the tunnel hosted by the worker's own code."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

@@ -3,7 +3,6 @@ name = "hivekeep-ctl"
 description = "hivectl: the operator and developer command-line client for Hivekeep."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

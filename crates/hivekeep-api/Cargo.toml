@@ -3,7 +3,6 @@ name = "hivekeep-api"
 description = "hivekeep-api: the Hivekeep control plane serving the Control and WorkerService APIs."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

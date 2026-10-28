@@ -3,7 +3,6 @@ name = "hivekeep-k8s"
 description = "Kubernetes API types and helpers for Hivekeep: the hivekeep.io/v1 CRDs, trust bundle and pod identity helpers, and a watch-backed cluster view for the keeper."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

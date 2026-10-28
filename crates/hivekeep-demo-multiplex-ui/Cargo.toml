@@ -3,7 +3,6 @@ name = "hivekeep-demo-multiplex-ui"
 description = "Dashboard for the Claude Code multiplex demo: workers, actors, pod logs and simulated task assignments"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

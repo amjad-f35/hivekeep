@@ -3,7 +3,6 @@ name = "hivekeep-objectstore"
 description = "Hivekeep object storage: GCS and S3 snapshot transfer, the object-store plugin protocol and its sidecar."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

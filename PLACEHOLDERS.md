@@ -11,7 +11,6 @@ Each entry names the exact location so nothing has to be guessed.
 | 3 | JWT claim names | `actor.hivekeep.io`, `worker-for-actor.hivekeep.io` | `crates/hivekeep-identity/src/jwt/claims.rs` | Same domain as #2. Relying parties read these claim names. |
 | 4 | Trust bundle names | `egress-mitm.hivekeep.io`, `system-roots.hivekeep.io` | `crates/hivekeep-identity/src/trust_bundle.rs` | Same domain as #2. |
 | 5 | Actor SPIFFE trust domain | `hivekeep-actor.local` | `crates/hivekeep-core/src/spiffe.rs` → `ACTOR_TRUST_DOMAIN` | Your SPIFFE trust domain (e.g. `actors.<your-domain>`) if you federate with external SPIFFE/SPIRE; otherwise the default is fine. |
-| 6 | Copyright holder | `The Hivekeep Authors` | `NOTICE` | Your legal entity name (company or individual). Keep the third-party attribution paragraph as-is — the Apache-2.0 license requires it. |
 | 7 | Default kube cluster domain | `cluster.local` | `crates/hivekeep-identity/src/pod_cert.rs` | Only change if your clusters use a non-default DNS domain. |
 | 8 | Preview opt-in header | `hk-preview-allowed` | `crates/hivekeep-core/src/preview.rs` → `PREVIEW_HEADER` | Fine as-is; confirm the `hk-` prefix is what you want on the wire before clients depend on it. |
 | 9 | Gate target header / log labels | `hk-target-actor`, `hk.hive`, `hk.actor.name`, `hk.actor.container.name` | `crates/hivekeep-ctl/src/gate.rs`, `crates/hivekeep-ctl/src/log_filter.rs` | Fine as-is; confirm before first release (wire-visible). |

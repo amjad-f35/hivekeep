@@ -3,7 +3,6 @@ name = "hivekeep-credential-provider"
 description = "Credential provider plugin resolving hk-secret:// URIs to Kubernetes Secret values for the egress gateway."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 build = "build.rs"

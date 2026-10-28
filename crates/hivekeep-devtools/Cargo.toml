@@ -3,7 +3,6 @@ name = "hivekeep-devtools"
 description = "Developer tooling for Hivekeep: API lint and CI test-report checks."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

@@ -3,7 +3,6 @@ name = "hivekeep-telemetry"
 description = "Hivekeep process boot, logging, OpenTelemetry setup, gRPC interceptors and the node OTLP relay."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

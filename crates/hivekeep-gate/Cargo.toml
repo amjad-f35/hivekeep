@@ -3,7 +3,6 @@ name = "hivekeep-gate"
 description = "Hivekeep network mediation: ingress router, egress gateway, sandbox tunnel and DNS relay."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 build = "build.rs"

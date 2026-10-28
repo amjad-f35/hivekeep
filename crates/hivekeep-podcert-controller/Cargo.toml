@@ -3,7 +3,6 @@ name = "hivekeep-podcert-controller"
 description = "Pod certificate controller for Hivekeep: issues service DNS, pod identity and PostgreSQL login certificates in answer to PodCertificateRequests."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

@@ -3,7 +3,6 @@ name = "hivekeep-demo-egress"
 description = "Egress demo workload: fetches URLs, opens WebSockets, makes gRPC calls and sends CONNECTs on request, so an Actor's egress policy can be observed from outside."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

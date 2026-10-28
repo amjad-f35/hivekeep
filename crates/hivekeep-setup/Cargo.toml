@@ -3,7 +3,6 @@ name = "hivekeep-setup"
 description = "Cluster installer for Hivekeep: deploys the control plane, its secrets and config, the bundled demos, and the GCP project scaffolding they run on."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

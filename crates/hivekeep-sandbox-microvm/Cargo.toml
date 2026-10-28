@@ -3,7 +3,6 @@ name = "hivekeep-sandbox-microvm"
 description = "Hivekeep sandbox worker that runs, checkpoints and restores Actors as Cloud Hypervisor micro-VMs with a kata guest agent."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

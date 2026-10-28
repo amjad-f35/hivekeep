@@ -135,7 +135,7 @@ ARG COMMIT=unknown
 ARG BUILD_DATE
 LABEL org.opencontainers.image.title="${COMPONENT}" \
       org.opencontainers.image.vendor="Hivekeep" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="LicenseRef-Proprietary" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"
@@ -149,7 +149,7 @@ ARG COMMIT=unknown
 ARG BUILD_DATE
 LABEL org.opencontainers.image.title="${COMPONENT}" \
       org.opencontainers.image.vendor="Hivekeep" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="LicenseRef-Proprietary" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"
@@ -163,7 +163,7 @@ ARG COMMIT=unknown
 ARG BUILD_DATE
 LABEL org.opencontainers.image.title="${COMPONENT}" \
       org.opencontainers.image.vendor="Hivekeep" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="LicenseRef-Proprietary" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"

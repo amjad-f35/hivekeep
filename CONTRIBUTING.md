@@ -51,6 +51,3 @@ Thanks for helping. Bug reports, fixes, tests and docs are all welcome.
 
 Describe what changed and why, how you tested it, and anything a reviewer
 should look at closely. A maintainer reviews every change before it merges.
-
-By contributing, you agree that your contribution is licensed under the
-Apache License 2.0 (see [LICENSE](LICENSE)).

@@ -3,7 +3,6 @@ name = "hivekeep-identity"
 description = "Actor and worker identity for Hivekeep: SPIFFE X.509 certificate minting, actor JWTs and trust bundles."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 

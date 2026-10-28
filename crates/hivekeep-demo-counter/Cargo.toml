@@ -3,7 +3,6 @@ name = "hivekeep-demo-counter"
 description = "Counter demo workload: shows which memory, volume and rootfs state survives an Actor's suspend and resume."
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
