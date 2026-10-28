@@ -1,0 +1,8 @@
+# Build context of images/Dockerfile: the whole repository minus build output
+# and version-control metadata.
+target/
+**/target/
+.git/
+.github/
+*.swp
+.DS_Store
