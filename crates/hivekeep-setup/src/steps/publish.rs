@@ -531,13 +531,23 @@ mod tests {
 
     #[test]
     fn publish_release_binaries_stamps_version_and_commit() {
-        // Needs a git checkout to stamp from; the crate's own works.
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf();
-        let Some((commit, _)) = crate::builder::commit_stamp(&root) else {
-            eprintln!("skipping: no commit checked out at {}", root.display());
-            return;
-        };
+        // Needs a git checkout to stamp from: a throwaway one with a commit.
         let work = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(["-c", "user.name=test", "-c", "user.email=test@example.com"])
+                .args(args)
+                .current_dir(work.path())
+                .output()
+                .is_ok_and(|o| o.status.success())
+        };
+        if !(git(&["init", "-q"]) && git(&["commit", "-q", "--allow-empty", "-m", "stamp"])) {
+            eprintln!("skipping: git is unavailable");
+            return;
+        }
+        let commit = crate::builder::commit_stamp(work.path())
+            .expect("the throwaway checkout has a commit")
+            .0;
         let out = tempfile::tempdir().unwrap();
         let e = Env::local(Config {
             root: work.path().to_path_buf(),
